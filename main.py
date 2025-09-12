@@ -6,7 +6,6 @@ import numpy as np
 
 # Import functions from our phases
 from interpreter.concept_nlp import get_concept
-from icd_generator.icd_naive_generator import generate_relevant_codes
 from mapping_refinement.hypothesis_generator import generate_hypotheses
 from time_series_evaluator.create_time_series import (
     create_timeseries_function,
@@ -28,16 +27,14 @@ def run_pipeline(user_desc):
     claims_df = pd.read_csv(config["data_filepath"])
     claims_df = clean_data(claims_df, config["target_colnames"])
 
-    # Phase 1: Extract medical concepts
-    print("Phase 1: Extracting medical concepts...")
-    extracted_concepts = get_concept(user_desc)
+    # Phase 1/2: Extract medical concepts AND ICD codes
+    print("Phase 1: Extracting medical concepts and ICD codes...")
+    concept_result = get_concept(user_desc)
+    extracted_concepts = concept_result["concepts"]
+    codes = {"icd9": concept_result["icd9"], "icd10": concept_result["icd10"]}
+    
     print(f"Extracted concepts: {extracted_concepts}")
-
-    # Phase 2: Generate ICD codes
-    print("Phase 2: Generating ICD codes...")
-    codes = generate_relevant_codes(extracted_concepts)
-    total_codes = len(codes["icd9"]) + len(codes["icd10"])
-    print(f"Found {total_codes} ICD codes")
+    print(f"Found {len(codes['icd9'])} ICD-9 codes and {len(codes['icd10'])} ICD-10 codes")
 
     # Phase 3: Generate hypotheses
     print("Phase 3: Generating hypotheses...")

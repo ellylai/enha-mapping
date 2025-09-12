@@ -17,72 +17,14 @@ from time_series_evaluator.create_time_series import (
 from time_series_evaluator.smoothness_evaluator import calculate_smoothness_score
 from ts_results.plot_timeseries import plot_ts
 
-
-def create_mock_data():
-    """Creates a mock dataset with multiple diagnosis columns."""
-    N_CLAIMS = 25000
-    START_DATE = "2014-01-01"
-    END_DATE = "2020-12-31"
-    TRANSITION_DATE = "2015-10-01"
-
-    pre_transition_codes = {"425.4": 0.4, "440.9": 0.4, "A01": 0.2}
-    post_transition_codes = {"I42.9": 0.45, "I70.9": 0.35, "B02": 0.2}
-
-    dates = pd.to_datetime(pd.date_range(start=START_DATE, end=END_DATE, freq="D"))
-    transition_date_dt = pd.to_datetime(TRANSITION_DATE)
-
-    pre_dates = dates[dates < transition_date_dt]
-    post_dates = dates[dates >= transition_date_dt]
-
-    n_pre = int(N_CLAIMS * (len(pre_dates) / len(dates)))
-    n_post = N_CLAIMS - n_pre
-
-    pre_claims_dates = np.random.choice(pre_dates, size=n_pre, replace=True)
-    pre_claims_codes = np.random.choice(
-        list(pre_transition_codes.keys()),
-        size=n_pre,
-        replace=True,
-        p=list(pre_transition_codes.values()),
-    )
-    post_claims_dates = np.random.choice(post_dates, size=n_post, replace=True)
-    post_claims_codes = np.random.choice(
-        list(post_transition_codes.keys()),
-        size=n_post,
-        replace=True,
-        p=list(post_transition_codes.values()),
-    )
-
-    # Create a single column first
-    single_diag_df = pd.DataFrame(
-        {
-            "date": np.concatenate([pre_claims_dates, post_claims_dates]),
-            "diag_1": np.concatenate([pre_claims_codes, post_claims_codes]),
-        }
-    )
-
-    # Distribute into three diagnosis columns, adding some NaNs
-    claims_df = single_diag_df.copy()
-    claims_df["diag_2"] = claims_df["diag_1"].where(
-        np.random.rand(len(claims_df)) < 0.3, np.nan
-    )
-    claims_df["diag_3"] = claims_df["diag_1"].where(
-        np.random.rand(len(claims_df)) < 0.1, np.nan
-    )
-    claims_df["diag_1"] = claims_df["diag_1"].where(
-        np.random.rand(len(claims_df)) < 0.8, np.nan
-    )
-
-    return claims_df.sample(frac=1).reset_index(drop=True)
-
-
 def run_pipeline(user_desc):
     """Run the ICD code mapping pipeline"""
     print(f"Analyzing: '{user_desc}'")
     config = get_input(user_desc)
 
     # Load and prepare data
-    print("Loading mock claims data...")
-    claims_df = create_mock_data()
+    print("Loading synthetic claims data...")
+    claims_df = pd.read_csv(config["data_filepath"])
     claims_df = clean_data(claims_df, config["target_colnames"])
 
     # Phase 1: Extract medical concepts

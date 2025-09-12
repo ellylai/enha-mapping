@@ -1,3 +1,5 @@
 pycache
 __pycache__
 .env
+time_series_evaluator/__pycache__/create_time_series.cpython-312.pyc
+*.pyc

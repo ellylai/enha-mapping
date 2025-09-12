@@ -80,9 +80,18 @@ def run_pipeline():
     Executes the full agentic pipeline.
     """
     # --- User Input & Config ---
-    USER_INPUT_DESC = (
-        "I want to find all claims related to cardiomyopathy and atherosclerosis."
-    )
+    print("=== ICD Code Mapping Pipeline ===")
+    print("Enter a description of the medical conditions you want to analyze:")
+    print("Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'")
+    print()
+    
+    USER_INPUT_DESC = input("Your description: ").strip()
+    
+    if not USER_INPUT_DESC:
+        print("No input provided, using default example...")
+        USER_INPUT_DESC = "I want to find all claims related to cardiomyopathy and atherosclerosis."
+    
+    print(f"\nAnalyzing: '{USER_INPUT_DESC}'")
     config = get_input(USER_INPUT_DESC)
 
     # --- Load and Prepare Data ---

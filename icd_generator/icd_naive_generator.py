@@ -70,7 +70,7 @@ def generate_relevant_codes(keywords: list[str]) -> dict:
         )
         icd9_matches = icd9_matches.sort_values('relevance', ascending=False)
         # Limit to top 20 most relevant codes
-        icd9_codes = icd9_matches.head(20)[code_col].tolist()
+        icd9_codes = icd9_matches[code_col].tolist()
     else:
         icd9_codes = []
     
@@ -81,7 +81,7 @@ def generate_relevant_codes(keywords: list[str]) -> dict:
         )
         icd10_matches = icd10_matches.sort_values('relevance', ascending=False)
         # Limit to top 20 most relevant codes
-        icd10_codes = icd10_matches.head(20)[code_col].tolist()
+        icd10_codes = icd10_matches[code_col].tolist()
     else:
         icd10_codes = []
     

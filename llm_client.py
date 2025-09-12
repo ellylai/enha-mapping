@@ -5,7 +5,7 @@ import os
 class OllamaClient:
     """Simple client for Ollama LLM integration"""
     
-    def __init__(self, model="llama3.2:3b", base_url="http://localhost:11434"):
+    def __init__(self, model="deepseek-r1:7b", base_url="http://localhost:11434"):
         self.model = model
         self.base_url = base_url
         self.use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
@@ -19,15 +19,7 @@ class OllamaClient:
         # Create a cleaner prompt format
         full_prompt = prompt
         if system_message:
-            full_prompt = f"{system_message}\\n\\n{prompt}"
-        
-        print("\\n" + "="*80)
-        print("🤖 FULL OLLAMA CONVERSATION")
-        print("="*80)
-        print("📤 SENDING TO OLLAMA:")
-        print("-" * 40)
-        print(full_prompt)
-        print("-" * 40)
+            full_prompt = f"{system_message}\n\n{prompt}"
         
         try:
             response = requests.post(
@@ -38,13 +30,13 @@ class OllamaClient:
                     "stream": False,
                     "options": {
                         "temperature": 0.1,  # Lower temperature for more focused responses
-                        "num_predict": 50,   # Even shorter responses for cleaner output
-                        "top_p": 0.8,        # More focused sampling
+                        "num_predict": 1000,  # Much more tokens to allow complete reasoning + comprehensive answer
+                        "top_p": 0.9,        # More focused sampling
                         "repeat_penalty": 1.1,  # Reduce repetition
-                        "stop": ["\\n\\n", "Example:", "Note:", "Format:", "Based on", "I extracted"]  # Better stop tokens
+                        "stop": []  # Let it complete naturally
                     }
                 },
-                timeout=30
+                timeout=60  # Much longer timeout to allow full reasoning without interruption
             )
             
             if response.status_code == 200:
@@ -56,8 +48,28 @@ class OllamaClient:
                 print(f"'{raw_response}'")
                 print("-" * 40)
                 
-                # Clean up the response - remove common conversational phrases
+                # Clean up the response - remove reasoning tags and conversational phrases
                 response_text = raw_response
+                
+                # Remove DeepSeek R1 reasoning tags
+                if '<think>' in response_text:
+                    # Extract everything after </think> if it exists
+                    if '</think>' in response_text:
+                        response_text = response_text.split('</think>')[-1]
+                    else:
+                        # If thinking is incomplete, try to extract structured lines from the raw response
+                        lines = response_text.split('\n')
+                        structured_lines = []
+                        for line in lines:
+                            if any(line.strip().startswith(prefix) for prefix in ['CONDITIONS:', 'ICD9:', 'ICD10:']):
+                                structured_lines.append(line.strip())
+                        if structured_lines:
+                            response_text = '\n'.join(structured_lines)
+                        else:
+                            # If no structured lines found, return empty to trigger fallback
+                            response_text = ""
+                
+                # Clean up conversational phrases
                 response_text = response_text.replace("Based on the description", "")
                 response_text = response_text.replace("I extracted the following", "")
                 response_text = response_text.replace("The primary clinical concepts are:", "")

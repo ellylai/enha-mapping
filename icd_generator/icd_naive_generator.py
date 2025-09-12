@@ -46,8 +46,44 @@ def generate_relevant_codes(keywords: list[str]) -> dict:
     keyword_pattern = '|'.join(search_terms)
     
     # Filter each dataframe for descriptions containing the keywords
-    icd9_codes = icd9[icd9[desc_col].str.contains(keyword_pattern, case=False, na=False)][code_col].tolist()
-    icd10_codes = icd10[icd10[desc_col].str.contains(keyword_pattern, case=False, na=False)][code_col].tolist()
+    icd9_matches = icd9[icd9[desc_col].str.contains(keyword_pattern, case=False, na=False)]
+    icd10_matches = icd10[icd10[desc_col].str.contains(keyword_pattern, case=False, na=False)]
+    
+    # Add relevance scoring based on keyword match quality
+    def calculate_relevance_score(description, search_terms):
+        score = 0
+        desc_lower = description.lower()
+        for term in search_terms:
+            if term in desc_lower:
+                # Higher score for exact matches, lower for partial
+                if f" {term} " in f" {desc_lower} ":
+                    score += 2  # Exact word match
+                else:
+                    score += 1  # Partial match
+        return score
+    
+    # Calculate scores and sort by relevance
+    if not icd9_matches.empty:
+        icd9_matches = icd9_matches.copy()
+        icd9_matches['relevance'] = icd9_matches[desc_col].apply(
+            lambda desc: calculate_relevance_score(desc, search_terms)
+        )
+        icd9_matches = icd9_matches.sort_values('relevance', ascending=False)
+        # Limit to top 20 most relevant codes
+        icd9_codes = icd9_matches.head(20)[code_col].tolist()
+    else:
+        icd9_codes = []
+    
+    if not icd10_matches.empty:
+        icd10_matches = icd10_matches.copy()
+        icd10_matches['relevance'] = icd10_matches[desc_col].apply(
+            lambda desc: calculate_relevance_score(desc, search_terms)
+        )
+        icd10_matches = icd10_matches.sort_values('relevance', ascending=False)
+        # Limit to top 20 most relevant codes
+        icd10_codes = icd10_matches.head(20)[code_col].tolist()
+    else:
+        icd10_codes = []
     
     print(f"Found {len(icd9_codes)} ICD-9 codes and {len(icd10_codes)} ICD-10 codes")
     if icd9_codes:

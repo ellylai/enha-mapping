@@ -80,10 +80,11 @@ def run_pipeline():
     Executes the full agentic pipeline.
     """
     # --- User Input & Config ---
+    # MOCK INPUT, WILL IMPLEMENT LATER
     USER_INPUT_DESC = (
         "I want to find all claims related to cardiomyopathy and atherosclerosis."
     )
-    config = get_input(USER_INPUT_DESC)
+    config = get_input(USER_INPUT_DESC)  # INCOMPLETE FUNCTION
 
     # --- Load and Prepare Data ---
     print("Loading and preparing mock claims data...")

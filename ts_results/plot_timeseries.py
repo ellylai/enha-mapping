@@ -2,11 +2,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.dates as mdates
 
-def plot_ts(
-    df_timeseries: pd.DataFrame,
-    date_col: str,
-    target_rolling_col: str
-):
+
+def plot_ts(df_timeseries: pd.DataFrame, date_col: str, target_rolling_col: str):
+    """
+    Plots timeseries for view, might not be used until the end (when returning to user)
+    """
+    
     df = df_timeseries.sort_values(by=[date_col]).copy()
 
     # --- Create the Plots ---

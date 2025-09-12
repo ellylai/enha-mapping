@@ -7,6 +7,7 @@ Hypothesis = typing.TypedDict('Hypothesis', {'name': str, 'icd9_codes': set[str]
 
 def agentic_web_search(code: str) -> list[str]:
     """
+    NOT IMPLEMENTED
     Placeholder for an agent that searches the web for clinical mappings.
     For now, it returns an empty list.
     """
@@ -17,7 +18,7 @@ def agentic_web_search(code: str) -> list[str]:
 
 def generate_hypotheses(naive_codes: dict) -> list[Hypothesis]:
     """
-    MOCK FUNCTION CURRENTLY
+    MOCK FUNCTION, NOT IMPLEMENTED
     Generates mapping hypotheses using GEM files and agentic search placeholders.
     """
     gem_mapping = pd.read_csv("icd_generator/files/icd10cmtoicd9gem.csv")

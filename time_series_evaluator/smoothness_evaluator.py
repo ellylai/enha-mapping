@@ -10,6 +10,11 @@ def calculate_smoothness_score(
     transition_date: str = "2015-10-01"
 ) -> float:
     """
+    CURRENTLY USING ITSA.
+    Other possible approaches include: 
+        slope comparison, targeting the year after transition_date. 
+        compare with slope of before and after that 1 year, detect anomalies
+    
     Performs an Interrupted Time Series Analysis (ITSA) to score discontinuity.
     The score is the p-value of the interaction term, which represents the
     significance of the change in slope after the transition.

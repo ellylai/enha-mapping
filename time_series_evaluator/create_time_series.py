@@ -6,28 +6,28 @@ import typing
 def get_input(user_input: str) -> dict:
     """
     Parses user input to get parameters for the analysis.
-    MOCK FUNCTION: will implement UI
+    MOCK FUNCTION: NEEDS TO GET UI
     """
     print(f"Parsing mock user input from: '{user_input}'")
     result_dict = {
-        'target_category': "Cardiovascular Disease",
-        'date_colname': "date",
-        'target_colnames': ["diag_1", "diag_2", "diag_3"],
-        'cap_year': 2020,
-        'data_filepath': "/path/to/mock/data.csv",
+        "target_category": "Cardiovascular Disease",
+        "date_colname": "date",
+        "target_colnames": ["diag_1", "diag_2", "diag_3"],
+        "cap_year": 2020,
+        "data_filepath": "/path/to/mock/data.csv",
     }
     return result_dict
 
 
 def clean_data(df: pd.DataFrame, target_colnames: list[str]) -> pd.DataFrame:
     """
-    Cleans the target ICD code columns by ensuring they are strings and stripped of whitespace.
+    Cleans the target ICD code columns by ensuring they are strings and stripped of whitespace and periods.
     """
     print("Cleaning target columns...")
     for col in target_colnames:
         if col in df.columns:
             # Convert to string, strip whitespace, and replace 'nan' strings with actual NaN
-            df[col] = df[col].astype(str).str.strip().replace('nan', np.nan)
+            df[col] = df[col].astype(str).str.strip().strip(".").replace("nan", np.nan)
     return df
 
 

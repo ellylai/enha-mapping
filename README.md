@@ -1,5 +1,6 @@
 ellyse - heeseung bias
-evelyn - JAY bias
+evelyn - jay bias
+neethi - heeseung bias
 
 1: `/interpreter`
 Prompt for some target category

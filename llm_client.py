@@ -19,7 +19,15 @@ class OllamaClient:
         # Create a cleaner prompt format
         full_prompt = prompt
         if system_message:
-            full_prompt = f"{system_message}\n\n{prompt}"
+            full_prompt = f"{system_message}\\n\\n{prompt}"
+        
+        print("\\n" + "="*80)
+        print("🤖 FULL OLLAMA CONVERSATION")
+        print("="*80)
+        print("📤 SENDING TO OLLAMA:")
+        print("-" * 40)
+        print(full_prompt)
+        print("-" * 40)
         
         try:
             response = requests.post(
@@ -29,11 +37,11 @@ class OllamaClient:
                     "prompt": full_prompt,
                     "stream": False,
                     "options": {
-                        "temperature": 0.05,  # Very low temperature for consistent medical terminology
-                        "num_predict": 80,    # Even shorter for focused responses
-                        "top_p": 0.8,
-                        "repeat_penalty": 1.1,
-                        "stop": ["\n", "Note:", "Example:", "Format:", "ICD", "The", "These"]  # Stop on explanatory text
+                        "temperature": 0.1,  # Lower temperature for more focused responses
+                        "num_predict": 50,   # Even shorter responses for cleaner output
+                        "top_p": 0.8,        # More focused sampling
+                        "repeat_penalty": 1.1,  # Reduce repetition
+                        "stop": ["\\n\\n", "Example:", "Note:", "Format:", "Based on", "I extracted"]  # Better stop tokens
                     }
                 },
                 timeout=30
@@ -41,21 +49,36 @@ class OllamaClient:
             
             if response.status_code == 200:
                 result = response.json()
-                response_text = result.get("response", "").strip()
+                raw_response = result.get("response", "").strip()
+                
+                print("📥 RAW OLLAMA RESPONSE:")
+                print("-" * 40)
+                print(f"'{raw_response}'")
+                print("-" * 40)
+                
                 # Clean up the response - remove common conversational phrases
+                response_text = raw_response
                 response_text = response_text.replace("Based on the description", "")
                 response_text = response_text.replace("I extracted the following", "")
                 response_text = response_text.replace("The primary clinical concepts are:", "")
                 response_text = response_text.replace("Here are", "")
                 response_text = response_text.strip().strip(":")
+                
+                print("🧹 CLEANED RESPONSE:")
+                print("-" * 40)
+                print(f"'{response_text}'")
+                print("-" * 40)
+                print("="*80)
+                print()
+                
                 return response_text
             else:
-                print(f"Ollama API error: {response.status_code}")
+                print(f"❌ Ollama API error: {response.status_code}")
                 return self._mock_fallback(prompt)
                 
         except Exception as e:
-            print(f"Ollama connection error: {e}")
-            print("Falling back to mock responses...")
+            print(f"❌ Ollama connection error: {e}")
+            print("🔄 Falling back to mock responses...")
             return self._mock_fallback(prompt)
     
     def _mock_fallback(self, prompt):

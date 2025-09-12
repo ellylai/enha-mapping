@@ -75,55 +75,39 @@ def create_mock_data():
     return claims_df.sample(frac=1).reset_index(drop=True)
 
 
-def run_pipeline():
-    """
-    Executes the full agentic pipeline.
-    """
-    # --- User Input & Config ---
-    print("=== ICD Code Mapping Pipeline ===")
-    print("Enter a description of the medical conditions you want to analyze:")
-    print("Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'")
-    print()
-    
-    USER_INPUT_DESC = input("Your description: ").strip()
-    
-    if not USER_INPUT_DESC:
-        print("No input provided, using default example...")
-        USER_INPUT_DESC = "I want to find all claims related to cardiomyopathy and atherosclerosis."
-    
-    print(f"\nAnalyzing: '{USER_INPUT_DESC}'")
-    config = get_input(USER_INPUT_DESC)
+def run_pipeline(user_desc):
+    """Run the ICD code mapping pipeline"""
+    print(f"Analyzing: '{user_desc}'")
+    config = get_input(user_desc)
 
-    # --- Load and Prepare Data ---
-    print("Loading and preparing mock claims data...")
+    # Load and prepare data
+    print("Loading mock claims data...")
     claims_df = create_mock_data()
     claims_df = clean_data(claims_df, config["target_colnames"])
-    print(f"Loaded {len(claims_df)} mock claims.")
 
-    # --- Phase 1: Interpret Concept ---
-    print("\n--- Phase 1: Interpreting Concept ---")
-    keywords = get_concept(USER_INPUT_DESC)
-    print(f"Generated Keywords: {keywords}")
-
-    # --- Phase 2: Generate Naive Code List ---
-    print("\n--- Phase 2: Generating Naive Code List ---")
-    naive_codes = generate_relevant_codes(keywords)
-    print(
-        f"Found {len(naive_codes['icd9'])} naive ICD-9 codes and {len(naive_codes['icd10'])} naive ICD-10 codes."
-    )
-
-    # --- Phase 3: Generate Hypotheses ---
-    print("\n--- Phase 3: Generating Hypotheses ---")
-    hypotheses = generate_hypotheses(naive_codes)
+    # Phase 1: Extract medical concepts
+    print("Phase 1: Extracting medical concepts...")
+    extracted_concepts = get_concept(user_desc)
+    print(f"Extracted concepts: {extracted_concepts}")
+        
+    # Phase 2: Generate ICD codes
+    print("Phase 2: Generating ICD codes...")
+    codes = generate_relevant_codes(extracted_concepts)
+    total_codes = len(codes["icd9"]) + len(codes["icd10"])
+    print(f"Found {total_codes} ICD codes")
+    
+    # Phase 3: Generate hypotheses
+    print("Phase 3: Generating hypotheses...")
+    hypotheses = generate_hypotheses(codes)
     print(f"Generated {len(hypotheses)} hypotheses to test.")
-
-    # --- Phase 4: Evaluate Hypotheses ---
-    print("\n--- Phase 4: Evaluating Hypotheses ---")
+    
+    # Phase 4: Evaluate hypotheses
+    print("Phase 4: Evaluating hypotheses...")
     results = []
     for h in hypotheses:
         print(f"Testing hypothesis: '{h['name']}'...")
 
-        # Corrected Logic: Flag, then create time series, then score
+        # Flag, then create time series, then score
         target_flag_col = f"flag_{h['name'].replace(' ', '_')}"
         all_codes = list(h["icd9_codes"]) + list(h["icd10_codes"])
 
@@ -138,7 +122,7 @@ def run_pipeline():
             cap_year=config["cap_year"],
         )
 
-        # Dynamically find the rolling sum column name created by `create_timeseries`
+        # Dynamically find the rolling sum column name created by create_timeseries
         rolling_col_name = [
             col
             for col in ts.columns
@@ -155,32 +139,39 @@ def run_pipeline():
                 "rolling_col": rolling_col_name,
             }
         )
-        print(f"  Smoothness Score (1.0 - p_value): {score:.4f}")
+        print(f"  Smoothness Score: {score:.4f}")
 
-    # --- Phase 5: Select and Output Best Result ---
-    print("\n--- Phase 5: Selecting Best Result ---")
-    # A lower score is better (p-value closer to 1.0)
+    # Phase 5: Select best result
+    print("Phase 5: Selecting best result...")
     best_result = min(results, key=lambda x: x["score"])
     best_hypothesis = best_result["hypothesis"]
 
-    print(
-        f"\nBest hypothesis found: '{best_hypothesis['name']}' with a score of {best_result['score']:.4f}"
-    )
-    print(f"\nICD-9 Codes ({len(best_hypothesis['icd9_codes'])}):")
-    print(sorted(list(best_hypothesis["icd9_codes"])))
-    print(f"\nICD-10 Codes ({len(best_hypothesis['icd10_codes'])}):")
-    print(sorted(list(best_hypothesis["icd10_codes"])))
-
+    print(f"Best hypothesis: '{best_hypothesis['name']}' with score {best_result['score']:.4f}")
+    
     # Plot the best time series
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(12, 6))
 
     ts_to_plot = best_result["timeseries"]
+    rolling_col_name = best_result["rolling_col"]
 
     plot_ts(
         ts_to_plot, date_col=config["date_colname"], target_rolling_col=rolling_col_name
     )
+    
+    return best_result["timeseries"], best_result["score"]
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    print("ICD Code Mapping Pipeline")
+    print("Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'")
+    print()
+    
+    USER_INPUT_DESC = input("Your description: ").strip()
+    
+    if not USER_INPUT_DESC:
+        print("No input provided, using default example...")
+        USER_INPUT_DESC = "I want to find all claims related to cardiomyopathy and atherosclerosis."
+    
+    run_pipeline(USER_INPUT_DESC)
+

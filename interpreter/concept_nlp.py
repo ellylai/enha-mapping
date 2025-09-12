@@ -1,55 +1,123 @@
 import requests
 import json
 import typing
+import sys
+import os
 
-def mock_llm_invoke(prompt: str) -> str:
+# Add parent directory to path to import llm_client
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from llm_client import llm_client
+
+def clean_llm_response(response_text: str) -> list[str]:
     """
-    MOCK FUNCTION, NOT IMPLEMENTED
-    A dummy function that mimics a real LLM call for debugging.
+    Robustly clean LLM response to extract only medical condition names.
     """
-    print(f"--- MOCK LLM CALLED ---\nPrompt: {prompt[:100]}...")
-    # If the prompt is for extraction, return mock key terms
-    if "extract the primary clinical concepts" in prompt.lower():
-        print("Returning mock key terms...")
-        return "cardiomyopathy, atherosclerosis"
-    # If the prompt is for expansion, return mock extra terms
-    elif "expand it with synonyms" in prompt.lower():
-        print("Returning mock expansion terms...")
-        return "hypertrophic cardiomyopathy, dilated cardiomyopathy, hardening of arteries, plaque buildup"
-    return ""
+    # Remove common conversational phrases
+    cleanup_phrases = [
+        "based on the description",
+        "i extracted the following",
+        "the primary clinical concepts are:",
+        "here are",
+        "output:",
+        "answer:",
+        "medical conditions:",
+        "the conditions are:",
+        "related conditions:",
+        "icd conditions:"
+    ]
+    
+    cleaned = response_text.lower()
+    for phrase in cleanup_phrases:
+        cleaned = cleaned.replace(phrase, "")
+    
+    # Split by lines and find the line with actual conditions
+    lines = cleaned.split('\n')
+    condition_line = ""
+    
+    for line in lines:
+        line = line.strip()
+        # Skip empty lines and lines that start with conversational words
+        if (line and 
+            not line.startswith(('the ', 'i ', 'here', 'based', 'this', 'these', 'answer', 'output')) and
+            (',' in line or any(word in line for word in ['diabetes', 'cardio', 'hyper', 'syndrome', 'disorder', 'disease']))):
+            condition_line = line
+            break
+    
+    if not condition_line:
+        condition_line = cleaned.strip()
+    
+    # Extract conditions from the line
+    conditions = []
+    for term in condition_line.split(','):
+        term = term.strip().strip('.:()-"\'')
+        # Filter out non-medical terms and short words
+        if (term and 
+            len(term) > 2 and 
+            not term.startswith(('the ', 'i ', 'here', 'based', 'this', 'answer')) and
+            not term.isdigit()):
+            conditions.append(term)
+    
+    return conditions
 
 def get_concept(user_input_desc: str) -> list[str]:
     """
-    Identifies and expands on clinical concepts from a user's description using a mock LLM.
+    Identifies and expands on clinical concepts from a user's description using Ollama LLM.
     """
-    # In a real implementation, you would load your model here.
-    # For now, we point to our mock function.
-    # MOCK FUNCTION
-    llm_invoke = mock_llm_invoke
-
     # --- Step 1: Get key clinical terms from the initial description ---
-    extraction_prompt = f"""
-    You are a clinical terminology expert. Analyze the following description and extract the primary clinical concepts.
-    Description: "{user_input_desc}"
-    ---
-    Return only the core concepts as a comma-separated list.
-    """
-    key_terms_str = llm_invoke(extraction_prompt)
-    key_terms = [term.strip() for term in key_terms_str.split(',') if term.strip()]
+    system_message = "You are an ICD medical coding specialist. You must respond with ONLY medical condition names separated by commas. No explanations, no conversational text."
+    
+    extraction_prompt = f"""Extract ICD-appropriate medical conditions from: "{user_input_desc}"
+
+Rules:
+- Return ONLY condition names
+- Separate with commas
+- No explanations or extra text
+- Use precise medical terminology
+
+Examples:
+Input: "diabetes" → Output: diabetes mellitus
+Input: "heart problems" → Output: cardiomyopathy, heart failure
+Input: "drug addiction" → Output: substance dependence, opioid use disorder
+
+Output:"""
+    
+    key_terms_str = llm_client.invoke(extraction_prompt, system_message)
+    print(f"Raw LLM response for extraction: '{key_terms_str}'")
+    
+    # Use the new robust cleaning function
+    key_terms = clean_llm_response(key_terms_str)
+    
+    print(f"Cleaned key terms: {key_terms}")
 
     if not key_terms:
-        print("No key terms found...")
-        return []
+        print("No key terms found, using fallback")
+        return ["substance dependence", "opioid abuse"]  # More ICD-appropriate fallback
 
     # --- Step 2: Expand on the extracted key terms ---
-    expansion_prompt = f"""
-    You are a clinical terminology expert. Given a list of core medical terms, expand it with synonyms, common sub-types, and closely related concepts.
-    Core Terms: "{', '.join(key_terms)}"
-    ---
-    Return a comma-separated list of these additional terms. Do not repeat the original core terms.
-    """
-    extras_str = llm_invoke(expansion_prompt)
-    extras = [term.strip() for term in extras_str.split(',') if term.strip()]
+    expansion_prompt = f"""Add related ICD conditions to: {', '.join(key_terms)}
+
+Rules:
+- Return ONLY condition names
+- Separate with commas  
+- No explanations or extra text
+- Include subtypes and related conditions
+
+Examples:
+Input: cardiomyopathy → Output: hypertrophic cardiomyopathy, dilated cardiomyopathy, restrictive cardiomyopathy
+Input: substance dependence → Output: opioid dependence, alcohol dependence, drug withdrawal syndrome
+
+Output:"""
+    
+    extras_str = llm_client.invoke(expansion_prompt, system_message)
+    print(f"Raw LLM response for expansion: '{extras_str}'")
+    
+    # Use the robust cleaning function for expansion too
+    extras = clean_llm_response(extras_str)
+    
+    # Remove duplicates between key_terms and extras
+    extras = [term for term in extras if term not in key_terms]
+    
+    print(f"Cleaned expansion terms: {extras}")
     
     # --- Step 3: Combine the lists for the final result ---
     category = key_terms + extras

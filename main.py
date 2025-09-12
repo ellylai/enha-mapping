@@ -17,6 +17,7 @@ from time_series_evaluator.create_time_series import (
 from time_series_evaluator.smoothness_evaluator import calculate_smoothness_score
 from ts_results.plot_timeseries import plot_ts
 
+
 def run_pipeline(user_desc):
     """Run the ICD code mapping pipeline"""
     print(f"Analyzing: '{user_desc}'")
@@ -31,18 +32,18 @@ def run_pipeline(user_desc):
     print("Phase 1: Extracting medical concepts...")
     extracted_concepts = get_concept(user_desc)
     print(f"Extracted concepts: {extracted_concepts}")
-        
+
     # Phase 2: Generate ICD codes
     print("Phase 2: Generating ICD codes...")
     codes = generate_relevant_codes(extracted_concepts)
     total_codes = len(codes["icd9"]) + len(codes["icd10"])
     print(f"Found {total_codes} ICD codes")
-    
+
     # Phase 3: Generate hypotheses
     print("Phase 3: Generating hypotheses...")
     hypotheses = generate_hypotheses(codes)
     print(f"Generated {len(hypotheses)} hypotheses to test.")
-    
+
     # Phase 4: Evaluate hypotheses
     print("Phase 4: Evaluating hypotheses...")
     results = []
@@ -88,11 +89,9 @@ def run_pipeline(user_desc):
     best_result = min(results, key=lambda x: x["score"])
     best_hypothesis = best_result["hypothesis"]
 
-    print(f"Best hypothesis: '{best_hypothesis['name']}' with score {best_result['score']:.4f}")
-    
-    # Plot the best time series
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 6))
+    print(
+        f"Best hypothesis: '{best_hypothesis['name']}' with score {best_result['score']:.4f}"
+    )
 
     ts_to_plot = best_result["timeseries"]
     rolling_col_name = best_result["rolling_col"]
@@ -100,20 +99,23 @@ def run_pipeline(user_desc):
     plot_ts(
         ts_to_plot, date_col=config["date_colname"], target_rolling_col=rolling_col_name
     )
-    
+
     return best_result["timeseries"], best_result["score"]
 
 
 if __name__ == "__main__":
     print("ICD Code Mapping Pipeline")
-    print("Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'")
+    print(
+        "Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'"
+    )
     print()
-    
+
     USER_INPUT_DESC = input("Your description: ").strip()
-    
+
     if not USER_INPUT_DESC:
         print("No input provided, using default example...")
-        USER_INPUT_DESC = "I want to find all claims related to cardiomyopathy and atherosclerosis."
-    
-    run_pipeline(USER_INPUT_DESC)
+        USER_INPUT_DESC = (
+            "I want to find all claims related to cardiomyopathy and atherosclerosis."
+        )
 
+    run_pipeline(USER_INPUT_DESC)

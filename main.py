@@ -6,7 +6,7 @@ import numpy as np
 
 # Import functions from our phases
 from interpreter.concept_nlp import get_concept
-from mapping_refinement.hypothesis_generator import generate_hypotheses
+from hypothesis_refinement.hypothesis_generator import generate_hypotheses
 from time_series_evaluator.create_time_series import (
     create_timeseries_function,
     flag_dataframe,

@@ -12,9 +12,10 @@ def get_input(user_input: str) -> dict:
     result_dict = {
         "target_category": "Cardiovascular Disease",
         "date_colname": "date",
-        "target_colnames": ["diag_1", "diag_2", "diag_3"],
-        "cap_year": 2020,
-        "data_filepath": "/path/to/mock/data.csv",
+        "target_colnames": ["diag_p"]
+        + [f"odiag{n}" for n in range(1, 11)],  # columns from synthetic dataset
+        "cap_year": None,
+        "data_filepath": "synthetic_claims.csv",
     }
     return result_dict
 
@@ -27,7 +28,9 @@ def clean_data(df: pd.DataFrame, target_colnames: list[str]) -> pd.DataFrame:
     for col in target_colnames:
         if col in df.columns:
             # Convert to string, strip whitespace, and replace 'nan' strings with actual NaN
-            df[col] = df[col].astype(str).str.strip().strip(".").replace("nan", np.nan)
+            df[col] = (
+                df[col].astype(str).str.strip().str.strip(".").replace("nan", np.nan)
+            )
     return df
 
 
@@ -45,6 +48,8 @@ def flag_dataframe(
     df[target_category_colname] = (
         (df[target_colnames].isin(codes)).any(axis=1).fillna(False)
     )
+    flagged_count = df[target_category_colname].sum()
+    print(f"    Flagged {flagged_count} claims out of {len(df[target_category_colname])}.")
     return df
 
 
@@ -52,7 +57,7 @@ def create_timeseries_function(
     df_original: pd.DataFrame,
     date_col: str,
     target_col: str,
-    cap_year: int = 2020,  # usually, healthcare data would want to cap at 2020
+    cap_year: int = 2020,
 ):
     # THIS CODE WORKS ALREADY --- DON'T CHANGE
     df_original[date_col] = pd.to_datetime(df_original[date_col])

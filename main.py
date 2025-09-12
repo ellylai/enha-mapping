@@ -106,7 +106,7 @@ def run_pipeline(user_desc):
 if __name__ == "__main__":
     print("ICD Code Mapping Pipeline")
     print(
-        "Example: 'I want to find all claims related to cardiomyopathy and atherosclerosis.'"
+        "Example: 'I want to find all codes related to cardiomyopathy and atherosclerosis.'"
     )
     print()
 
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     if not USER_INPUT_DESC:
         print("No input provided, using default example...")
         USER_INPUT_DESC = (
-            "I want to find all claims related to cardiomyopathy and atherosclerosis."
+            "I want to find all codes related to cardiomyopathy and atherosclerosis."
         )
 
     run_pipeline(USER_INPUT_DESC)

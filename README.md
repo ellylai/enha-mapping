@@ -1,4 +1,4 @@
-ellyse - heeseung bias
+ellyse - HEESEUNG bias
 evelyn - JAY bias
 
 1: `/interpreter`

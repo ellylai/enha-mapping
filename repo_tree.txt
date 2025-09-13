@@ -1,0 +1,66 @@
+.
+├── .env
+├── .gitattributes
+├── .gitignore
+├── deprecated
+│   ├── concept_nlp_deprecated.py
+│   └── llm_client_deprecated.py
+├── enha
+│   ├── .gitignore
+│   ├── biome.json
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── public
+│   │   ├── file.svg
+│   │   ├── globe.svg
+│   │   ├── next.svg
+│   │   ├── vercel.svg
+│   │   └── window.svg
+│   ├── README.md
+│   ├── src
+│   │   ├── app
+│   │   │   ├── favicon.ico
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   └── components
+│   │       ├── Explanation.tsx
+│   │       ├── Graph.tsx
+│   │       ├── Loading.tsx
+│   │       ├── SideBar.tsx
+│   │       ├── TextBox.tsx
+│   │       └── UploadDocuments.tsx
+│   └── tsconfig.json
+├── icd_generator
+├── main.py
+├── mapping
+│   ├── break_detection
+│   │   └── break_detector.py
+│   ├── hypothesis_refinement
+│   │   ├── files
+│   │   │   ├── icd10_diagnosis_codes.csv
+│   │   │   ├── icd10cmtoicd9gem.csv
+│   │   │   └── icd9_diagnosis_codes.csv
+│   │   ├── hypothesis_generator.py
+│   │   └── icd_parsing_script.py
+│   ├── interpreter
+│   │   ├── llm_client2.py
+│   │   └── prompt_handler.py
+│   ├── time_series_evaluator
+│   │   ├── create_time_series.py
+│   │   └── smoothness_evaluator_deprecated.py
+│   └── ts_results
+│       └── plot_timeseries.py
+├── mapping_refinement
+├── mock_database.json
+├── package-lock.json
+├── README.md
+├── repo_tree.txt
+├── requirements.txt
+├── synthetic_claims.csv
+└── ts_results
+
+17 directories, 47 files

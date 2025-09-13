@@ -1,8 +1,19 @@
-# python main.py
+# main.py — prints to terminal AND mirrors text + metadata to Firestore (no images)
+
+import os
+import sys
+import io
+from uuid import uuid4
+
+from dotenv import load_dotenv
+
+# Load .env from this directory BEFORE importing anything that reads env vars
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+
 import pandas as pd
 
-# Import functions from our phases
-from mapping.interpreter.prompt_handler import get_concept
+# --- Your pipeline imports (unchanged) ---
+from mapping.interpreter.prompt_handler import get_concept  # noqa: F401 (kept for your flow)
 from mapping.hypothesis_refinement.hypothesis_generator import generate_hypotheses
 from mapping.time_series_evaluator.create_time_series import (
     create_timeseries_function,
@@ -10,15 +21,65 @@ from mapping.time_series_evaluator.create_time_series import (
     clean_data,
     get_input,
 )
-from mapping.ts_results.plot_timeseries import plot_ts
+from mapping.ts_results.plot_timeseries import plot_ts  # noqa: F401 (kept; optional fig use)
 from mapping.break_detection.break_detector import break_detector
 
-def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00):
+# --- Firestore logger (Firestore-only) ---
+from mapping.utils.firestore_logger import (
+    create_run_doc,
+    finalize_run,
+    log_iteration_meta,
+    append_run_log,
+    append_iter_log,
+    save_code,
+)
+
+# ---------- Tee: capture stdout while still printing ----------
+class TeeStdout(io.TextIOBase):
+    """
+    Duplicates writes to the real stdout AND buffers them so we can flush in chunks
+    to Firestore. Keeps a monotonic sequence so the UI can order the chunks.
+    """
+    def __init__(self, real):
+        self.real = real
+        self.buf: list[str] = []
+        self.seq = 0
+
+    def write(self, s: str) -> int:
+        # still print to terminal
+        self.real.write(s)
+        # capture
+        self.buf.append(s)
+        return len(s)
+
+    def flush(self) -> None:
+        self.real.flush()
+
+    def flush_to_firestore(self, run_id: str, i: int | None = None) -> None:
+        joined = "".join(self.buf)
+        if not joined:
+            return
+        # chunk to avoid hitting Firestore 1MiB/doc limit; keep it small
+        CHUNK = 40000
+        for start in range(0, len(joined), CHUNK):
+            chunk = joined[start : start + CHUNK]
+            if i is None:
+                append_run_log(run_id, chunk, seq=self.seq)
+            else:
+                append_iter_log(run_id, i, chunk, seq=self.seq)
+            self.seq += 1
+        self.buf.clear()
+
+
+TEE: TeeStdout | None = None  # set in __main__
+
+
+# ---------- Your existing evaluation function (unchanged logic) ----------
+def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold=500.00):
     """
     Consolidated function to evaluate a single hypothesis.
     It creates a time series and runs break detection.
     """
-
     target_flag_col = f"flag_{hypothesis['name'].replace(' ', '_')}"
     all_codes = list(hypothesis["icd9_codes"]) + list(hypothesis["icd10_codes"])
 
@@ -40,7 +101,7 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
         if col.startswith(f"{target_flag_col.split('_')[0]}_count")
     ][0]
 
-    # Perform break detection analysis
+    # Perform break detection analysis (still plots to screen if enabled in detector)
     break_analysis = break_detector.detect_breaks(
         ts,
         value_col=rolling_col_name,
@@ -48,23 +109,31 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
         plot_results=True,
     )
 
-    score = 0
+    score = 0.0
     if break_analysis.get("local_chow"):
         f_stats = [bp.get("F", 0) for bp in break_analysis["local_chow"]]
         if f_stats:
-            score = max(f_stats) # Score is the F-statistic of the worst break
-    
+            score = float(max(f_stats))
+
     artificial_slope = (
-            break_analysis["segments"][1]["slope"] if break_analysis["segments"] else None
+        break_analysis["segments"][1]["slope"]
+        if len(break_analysis.get("segments", [])) >= 2
+        else None
+    )
+    if artificial_slope and artificial_slope > 0:
+        comment = (
+            "The slope of the break area is artificially and significantly positive. "
+            "There are either extra ICD10 codes or too few ICD9 codes in this set."
         )
-    if artificial_slope > 0:
-        comment = "The slope of the break area is artificially and significantly positive. There are either extra ICD10 codes or too few ICD9 codes in this set."
     else:
-        comment = "The slope of the break area is artificially and significantly negative. There are either extra ICD9 codes or too few ICD10 codes in this set."
-    
+        comment = (
+            "The slope of the break area is artificially and significantly negative. "
+            "There are either extra ICD9 codes or too few ICD10 codes in this set."
+        )
+
     return {
         "hypothesis": hypothesis,
-        "score": score,  # Use the new, more meaningful score
+        "score": score,
         "timeseries": ts,
         "rolling_col": rolling_col_name,
         "artificial_break": score > break_threshold,
@@ -74,69 +143,85 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
     }
 
 
-def run_pipeline(user_desc, max_iterations=5, break_threshold = 500.00):
-    """Run the ICD code mapping pipeline"""
-    # PARSE INPUT AND LOAD SYNTHETIC TEST DATA
+def run_pipeline(user_desc, max_iterations=3, break_threshold=500.00):
+    """Run the ICD code mapping pipeline (Firestore text + metadata only)."""
+    global TEE
+    run_id = uuid4().hex
+    create_run_doc(run_id, user_desc)
+    print(f"Run ID: {run_id}")
+
     print(f"Analyzing: '{user_desc}'")
     config = get_input(user_desc)
     print("Loading synthetic claims data...")
     claims_df = pd.read_csv(config["data_filepath"])
     claims_df = clean_data(claims_df, config["target_colnames"])
+    if TEE:
+        TEE.flush_to_firestore(run_id)  # flush phase header logs
 
     history = []
 
-    # 1. FIRST PASS: EXTRACT ICD CODES
-    print(
-        "PHASE 1: Extracting medical concepts and ICD codes with function 'generate_hypotheses'..."
-    )
+    print("PHASE 1: Extracting medical concepts and ICD codes with function 'generate_hypotheses'...")
     current_hypothesis = generate_hypotheses(
         history,
         prev_results=None,
         user_input_desc=config["target_category"],
     )
     current_hypothesis["name"] += " 0"
+    if TEE:
+        TEE.flush_to_firestore(run_id)
 
-    # --- 2. EVALUATION & REFINEMENT LOOP ---
     print("PHASE 2: EVALUATION & REFINEMENT LOOP")
     for i in range(max_iterations):
         print(f"\n--- Iteration {i+1}/{max_iterations} ---")
-
-        # a. Evaluate the current hypothesis
         print(
-        f"      Hypothesis{i}: Found {len(current_hypothesis['icd9_codes'])} ICD-9 codes and {len(current_hypothesis['icd10_codes'])} ICD-10 codes"
+            f"      Hypothesis{i}: Found {len(current_hypothesis['icd9_codes'])} ICD-9 codes and "
+            f"{len(current_hypothesis['icd10_codes'])} ICD-10 codes"
         )
+
         result = evaluate_hypothesis(claims_df, current_hypothesis, config, break_threshold)
         history.append(result)
         print(f"  Break Score: {result['score']:.4f}")
-
-        # b. Check for exit condition (if score is good enough)
         print(f"  Worst Break (F-statistic): {result['score']:.4f}")
-        # A low F-statistic (e.g., < 4) is statistically insignificant.
+
+        # Firestore: iteration metadata (no images)
+        log_iteration_meta(
+            run_id,
+            i,
+            score=result["score"],
+            hypothesis_name=current_hypothesis["name"],
+            comment=result.get("comment", ""),
+        )
+
+        # If you have generated code for this iteration, persist it (optional):
+        # save_code(run_id, i, filename="generated.py", content=generated_code_str, language="python")
+
+        # Flush the terminal output for this iteration to Firestore
+        if TEE:
+            TEE.flush_to_firestore(run_id, i=i)
+
         if result["score"] < break_threshold:
-            print(
-                "YAY!! Breaks are no longer statistically significant. Concluding refinement."
-            )
+            print("YAY!! Breaks are no longer statistically significant. Concluding refinement.")
+            if TEE:
+                TEE.flush_to_firestore(run_id, i=i)
             break
 
-        # c. Use the result to generate the next hypothesis
-        if i < max_iterations - 1:  # Don't generate a new one on the last loop
+        if i < max_iterations - 1:
             print("   LOOP: Refining hypothesis based on break analysis...")
-
             current_hypothesis = generate_hypotheses(
                 history=history,
-                prev_results = result,
+                prev_results=result,
                 user_input_desc=config["target_category"],
             )
             current_hypothesis["name"] += f" {i+1}"
 
-    # --- 3. FINAL SELECTION ---
     print("\n--- Phase 3: Selecting Best Result ---")
     best_result = min(history, key=lambda x: x["score"])
     best_hypothesis = best_result["hypothesis"]
-
     print(
         f"\nBest hypothesis found: '{best_hypothesis['name']}' with a final score of {best_result['score']:.4f}"
     )
+
+    # Optional: re-plot best result (still only shows on screen)
     print("\n📊 Plotting detailed break analysis for the best result...")
     break_detector.detect_breaks(
         best_result["timeseries"],
@@ -153,11 +238,22 @@ def run_pipeline(user_desc, max_iterations=5, break_threshold = 500.00):
         f"ICD-10 Codes ({len(best_hypothesis['icd10_codes'])}): {sorted(list(best_hypothesis['icd10_codes']))}"
     )
 
+    # Firestore: finalize run with summary + best result
+    finalize_run(
+        run_id,
+        {**best_result, "iteration": history.index(best_result)},
+        status="succeeded",
+    )
+
+    if TEE:
+        # Final flush of any remaining run-level logs
+        TEE.flush_to_firestore(run_id)
+
     return best_result
 
 
 def _provide_refinement_feedback(best_result):
-    """Provide feedback for hypothesis refinement based on break analysis"""
+    """Provide feedback for hypothesis refinement based on break analysis (unchanged printing)."""
     break_analysis = best_result["break_analysis"]
 
     if break_analysis["total_breaks"] > 0:
@@ -184,10 +280,12 @@ def _provide_refinement_feedback(best_result):
 
 
 if __name__ == "__main__":
+    # Install the tee so everything still prints AND gets captured
+    TEE = TeeStdout(sys.stdout)
+    sys.stdout = TEE
+
     print("ICD Code Mapping Pipeline:\n")
-    USER_INPUT_DESC = input(
-        "Enter your target category (e.g., 'cocaine abuse'): "
-    ).strip()
+    USER_INPUT_DESC = input("Enter your target category (e.g., 'cocaine abuse'): ").strip()
 
     if not USER_INPUT_DESC:
         print("No input provided, using default example 'cocaine abuse'...")

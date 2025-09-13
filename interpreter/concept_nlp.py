@@ -40,26 +40,28 @@ def get_concept(user_input_desc: str) -> dict:
     icd9_codes = []
     icd10_codes = []
     
-    lines = response.split('\n')
-    for line in lines:
-        line = line.strip()
-        if line.startswith('CONDITIONS:'):
-            conditions_str = line.replace('CONDITIONS:', '').strip()
-            conditions = [c.strip() for c in conditions_str.split(',') if c.strip()]
-        elif line.startswith('ICD9:'):
-            icd9_str = line.replace('ICD9:', '').strip()
-            icd9_codes = [c.strip() for c in icd9_str.split(',') if c.strip()]
-        elif line.startswith('ICD10:'):
-            icd10_str = line.replace('ICD10:', '').strip()
-            icd10_codes = [c.strip() for c in icd10_str.split(',') if c.strip()]
+    # THIS IS TEMPORARILY COMMENTED OUT TO GO INTO FALLBACK BELOW
+    # lines = response.split('\n')
+    # for line in lines:
+    #     line = line.strip()
+    #     if line.startswith('CONDITIONS:'):
+    #         conditions_str = line.replace('CONDITIONS:', '').strip()
+    #         conditions = [c.strip() for c in conditions_str.split(',') if c.strip()]
+    #     elif line.startswith('ICD9:'):
+    #         icd9_str = line.replace('ICD9:', '').strip()
+    #         icd9_codes = [c.strip() for c in icd9_str.split(',') if c.strip()]
+    #     elif line.startswith('ICD10:'):
+    #         icd10_str = line.replace('ICD10:', '').strip()
+    #         icd10_codes = [c.strip() for c in icd10_str.split(',') if c.strip()]
     
     # Fallback if parsing fails
+
     if not conditions and not icd9_codes and not icd10_codes:
         print("Parsing failed, using fallback...")
         return {
-            "concepts": ["substance dependence"],
-            "icd9": ["304.00"],  # Fallback ICD-9
-            "icd10": ["F19.20"]  # Fallback ICD-10
+            "concepts": ["Problematic ICD9 and ICD 10 cardiomyopathy set"],
+            "icd9": ["4250","42511","42518","4252","4253","4254","4255","4257","4258","4259"],  # Fallback ICD-9
+            "icd10": ["I420","I421","I422","I423","I424","I425","I426","I427","I428"]  # Fallback ICD-10
         }
     
     print(f"Extracted conditions: {conditions}")

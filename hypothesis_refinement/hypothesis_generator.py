@@ -9,18 +9,6 @@ Hypothesis = typing.TypedDict(
 )
 
 
-def agentic_web_search(code: str) -> list[str]:
-    """
-    NOT IMPLEMENTED
-    Placeholder for an agent that searches the web for clinical mappings.
-    For now, it returns an empty list.
-    """
-    print(f"Agentic Web Search (mock): Searching for mappings for {code}...")
-    # In a real implementation, this would use a search API and an LLM to find
-    # and parse relevant clinical coding guidelines from the web.
-    return []
-
-
 def generate_hypotheses(
     codes: list[str], artificial_break: bool, artificial_slope: float
 ) -> list[Hypothesis]:

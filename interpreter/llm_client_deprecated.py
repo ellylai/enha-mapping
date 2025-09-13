@@ -18,8 +18,6 @@ class OllamaClient:
     def invoke(self, prompt: str, system_message: str = None) -> str:
         # Invoke the LLM with a prompt and optional system message
         
-        return self._mock_fallback(prompt)
-
         if not self.use_ollama:
             return self._mock_fallback(prompt)
         

@@ -9,3 +9,8 @@ def icd_map(icd10_codes: list[str]):
     icd9_codes = mapped_rows['icd9cm'].unique().tolist()
     
     return icd9_codes
+
+
+def parse_codes(raw_codes: list[str]) -> list[str]:
+    clean_codes = [c.replace('.', '') for c in raw_codes]
+    return clean_codes

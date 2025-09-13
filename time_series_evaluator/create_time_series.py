@@ -10,7 +10,7 @@ def get_input(user_input: str) -> dict:
     """
     print(f"Parsing mock user input from: '{user_input}'")
     result_dict = {
-        "target_category": "Cardiovascular Disease",
+        "target_category": user_input,
         "date_colname": "date",
         "target_colnames": ["diag_p"]
         + [f"odiag{n}" for n in range(1, 11)],  # columns from synthetic dataset
@@ -49,7 +49,9 @@ def flag_dataframe(
         (df[target_colnames].isin(codes)).any(axis=1).fillna(False)
     )
     flagged_count = df[target_category_colname].sum()
-    print(f"    Flagged {flagged_count} claims out of {len(df[target_category_colname])}.")
+    print(
+        f"    Flagged {flagged_count} claims out of {len(df[target_category_colname])}."
+    )
     return df
 
 

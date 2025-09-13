@@ -1,2 +1,9 @@
 google-genai
 pandas
+numpy
+sys
+os
+python-dotenv
+scikit-learn
+matplotlib
+scipy

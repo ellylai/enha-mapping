@@ -1,10 +1,6 @@
 # python main.py
 
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-import json
-import os
 
 # Import functions from our phases
 from interpreter.prompt_handler import get_concept

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import typing
 
 
 def get_input(user_input: str) -> dict:

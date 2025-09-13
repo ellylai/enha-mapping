@@ -6,6 +6,7 @@ from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 from scipy.stats import f  # for Chow tests
 
+
 class BreakDetector:
     """Detect structural breaks in time series for hypothesis evaluation.
 
@@ -18,17 +19,28 @@ class BreakDetector:
       - If focus_end is None, use the dataset's latest date.
     """
 
-    def __init__(self, icd_transition_date='2015-10-01',
-                 focus_start=None, focus_end=None,
-                 force_icd_segments=True, max_breaks=2):
+    def __init__(
+        self,
+        icd_transition_date="2015-10-01",
+        focus_start=None,
+        focus_end=None,
+        force_icd_segments=True,
+        max_breaks=2,
+    ):
         self.icd_transition = pd.Timestamp(icd_transition_date)
         self.focus_start = None if focus_start is None else pd.Timestamp(focus_start)
         self.focus_end = None if focus_end is None else pd.Timestamp(focus_end)
         self.force_icd_segments = force_icd_segments
         self.max_breaks = max_breaks
 
-    def detect_breaks(self, time_series_data, date_col='date', value_col=None,
-                      hypothesis_name="", plot_results=True):
+    def detect_breaks(
+        self,
+        time_series_data,
+        date_col="date",
+        value_col=None,
+        hypothesis_name="",
+        plot_results=True,
+    ):
         """Main entry: detect breaks (or force ICD segments) within the focus window."""
         # Prepare data
         ts_data = time_series_data.copy()
@@ -37,8 +49,11 @@ class BreakDetector:
 
         # Auto-detect value column if not provided
         if value_col is None:
-            value_cols = [col for col in ts_data.columns
-                          if 'rolling' in col.lower() or 'count' in col.lower()]
+            value_cols = [
+                col
+                for col in ts_data.columns
+                if "rolling" in col.lower() or "count" in col.lower()
+            ]
             if value_cols:
                 value_col = value_cols[0]
             else:
@@ -50,20 +65,20 @@ class BreakDetector:
         if len(ts_data) == 0:
             print("⚠️  No data available.")
             return {
-                'break_points': [],
-                'break_dates': [],
-                'segments': [],
-                'total_breaks': 0,
-                'break_score': 0,
-                'value_column': value_col,
-                'icd_transition_alignment': [],
-                'focus_range': "n/a",
-                'global_fit': None,
-                'global_ssr': None,
-                'segments_ssr': None,
-                'global_chow_F': None,
-                'global_chow_p': None,
-                'local_chow': []
+                "break_points": [],
+                "break_dates": [],
+                "segments": [],
+                "total_breaks": 0,
+                "break_score": 0,
+                "value_column": value_col,
+                "icd_transition_alignment": [],
+                "focus_range": "n/a",
+                "global_fit": None,
+                "global_ssr": None,
+                "segments_ssr": None,
+                "global_chow_F": None,
+                "global_chow_p": None,
+                "local_chow": [],
             }
 
         # Resolve focus window to dataset edges when None
@@ -72,38 +87,42 @@ class BreakDetector:
         effective_end = data_max if self.focus_end is None else self.focus_end
 
         # Filter to focus range
-        mask = (ts_data[date_col] >= effective_start) & (ts_data[date_col] <= effective_end)
+        mask = (ts_data[date_col] >= effective_start) & (
+            ts_data[date_col] <= effective_end
+        )
         focused_data = ts_data[mask].copy()
 
         if len(focused_data) == 0:
             print("⚠️  No data in focus range.")
             return {
-                'break_points': [],
-                'break_dates': [],
-                'segments': [],
-                'total_breaks': 0,
-                'break_score': 0,
-                'value_column': value_col,
-                'icd_transition_alignment': [],
-                'focus_range': f"{effective_start.date()} to {effective_end.date()}",
-                'global_fit': None,
-                'global_ssr': None,
-                'segments_ssr': None,
-                'global_chow_F': None,
-                'global_chow_p': None,
-                'local_chow': []
+                "break_points": [],
+                "break_dates": [],
+                "segments": [],
+                "total_breaks": 0,
+                "break_score": 0,
+                "value_column": value_col,
+                "icd_transition_alignment": [],
+                "focus_range": f"{effective_start.date()} to {effective_end.date()}",
+                "global_fit": None,
+                "global_ssr": None,
+                "segments_ssr": None,
+                "global_chow_F": None,
+                "global_chow_p": None,
+                "local_chow": [],
             }
 
         dates = focused_data[date_col].reset_index(drop=True)
         values = focused_data[value_col].reset_index(drop=True)
 
-        print(f"🔍 Analyzing {len(focused_data)} points in focus: {effective_start.date()} → {effective_end.date()}")
+        print(
+            f"🔍 Analyzing {len(focused_data)} points in focus: {effective_start.date()} → {effective_end.date()}"
+        )
 
         # --- Global (single-line) regression across the focused window ---
         global_fit = self._fit_global(dates, values)
         # Predicted values for global line (used for SSR / plotting)
         date_numeric_all = np.array([d.toordinal() for d in dates]).reshape(-1, 1)
-        global_pred = global_fit['model'].predict(date_numeric_all)
+        global_pred = global_fit["model"].predict(date_numeric_all)
         global_ssr = self._ssr(values, global_pred)
 
         # Decide segmentation mode
@@ -122,7 +141,9 @@ class BreakDetector:
             # Automatic detection path
             break_indices = self._find_break_points(values)
             if len(break_indices) > self.max_breaks:
-                print(f"⚠️  Limiting from {len(break_indices)} detected breaks to {self.max_breaks} most significant.")
+                print(
+                    f"⚠️  Limiting from {len(break_indices)} detected breaks to {self.max_breaks} most significant."
+                )
                 break_indices = self._prioritize_breaks(break_indices, dates)
             # ensure valid interior indices
             break_indices = [int(i) for i in break_indices if 0 < i < len(values)]
@@ -141,13 +162,13 @@ class BreakDetector:
         # SSR for piecewise segments (sum of each segment's residuals)
         segments_ssr = 0.0
         for seg in segments:
-            seg_mask = (dates >= seg['start_date']) & (dates <= seg['end_date'])
+            seg_mask = (dates >= seg["start_date"]) & (dates <= seg["end_date"])
             seg_dates = dates[seg_mask]
             seg_values = values[seg_mask]
             if len(seg_dates) == 0:
                 continue
             seg_num = np.array([d.toordinal() for d in seg_dates]).reshape(-1, 1)
-            seg_pred = seg['model'].predict(seg_num)
+            seg_pred = seg["model"].predict(seg_num)
             segments_ssr += self._ssr(seg_values, seg_pred)
 
         # Score and package results
@@ -159,41 +180,55 @@ class BreakDetector:
         n = len(values)
         k = 2  # intercept + slope for simple linear regression
         s = max(1, len(segments))  # number of segments (>=1)
-        global_F, global_p = self._chow_test_multi(n=n, k=k, s=s,
-                                                   ssr_restricted=global_ssr,
-                                                   ssr_unrestricted=segments_ssr)
+        global_F, global_p = self._chow_test_multi(
+            n=n, k=k, s=s, ssr_restricted=global_ssr, ssr_unrestricted=segments_ssr
+        )
 
         # (B) Local per-break Chow: for each break, fit two lines around that cut
         local_chow = []
         for b_idx in break_indices:
             F_loc, p_loc = self._local_chow_for_break(dates, values, b_idx, k=2)
             if F_loc is not None:
-                local_chow.append({'break_index': int(b_idx),
-                                   'break_date': dates.iloc[b_idx],
-                                   'F': F_loc, 'p': p_loc})
+                local_chow.append(
+                    {
+                        "break_index": int(b_idx),
+                        "break_date": dates.iloc[b_idx],
+                        "F": F_loc,
+                        "p": p_loc,
+                    }
+                )
 
         results = {
-            'break_points': break_indices,
-            'break_dates': break_dates,
-            'segments': segments,
-            'total_breaks': len(break_indices),
-            'break_score': break_score,
-            'value_column': value_col,
-            'icd_transition_alignment': self._check_icd_transition_alignment(break_dates),
-            'focus_range': f"{effective_start.date()} to {effective_end.date()}",
-            'global_fit': global_fit,
-            'global_ssr': global_ssr,
-            'segments_ssr': segments_ssr,
-            'global_chow_F': global_F,
-            'global_chow_p': global_p,
-            'local_chow': local_chow
+            "break_points": break_indices,
+            "break_dates": break_dates,
+            "segments": segments,
+            "total_breaks": len(break_indices),
+            "break_score": break_score,
+            "value_column": value_col,
+            "icd_transition_alignment": self._check_icd_transition_alignment(
+                break_dates
+            ),
+            "focus_range": f"{effective_start.date()} to {effective_end.date()}",
+            "global_fit": global_fit,
+            "global_ssr": global_ssr,
+            "segments_ssr": segments_ssr,
+            "global_chow_F": global_F,
+            "global_chow_p": global_p,
+            "local_chow": local_chow,
         }
 
         # Output and plot
-        self._print_results(results, hypothesis_name)
+        # self._print_results(results, hypothesis_name)
         if plot_results:
-            self._plot_results(dates, values, results, hypothesis_name, value_col,
-                               effective_start, effective_end)
+            self._plot_results(
+                dates,
+                values,
+                results,
+                hypothesis_name,
+                value_col,
+                effective_start,
+                effective_end,
+            )
 
         return results
 
@@ -217,8 +252,10 @@ class BreakDetector:
                 break_dates.append(dates.iloc[i])
             else:
                 break_dates.append(None)
-        distances = [abs((d - self.icd_transition).days) if d is not None else np.inf
-                     for d in break_dates]
+        distances = [
+            abs((d - self.icd_transition).days) if d is not None else np.inf
+            for d in break_dates
+        ]
         closest_idx = int(np.argmin(distances))
         prioritized = [break_indices[closest_idx]]
         for i, b_idx in enumerate(break_indices):
@@ -229,7 +266,7 @@ class BreakDetector:
                 if days_diff > 90:
                     prioritized.append(b_idx)
                     break
-        return prioritized[:self.max_breaks]
+        return prioritized[: self.max_breaks]
 
     def _fit_segment(self, dates, values, start_idx, end_idx):
         """Fit linear regression to [start_idx, end_idx) using date ordinals -> slope per year."""
@@ -244,16 +281,16 @@ class BreakDetector:
         slope_per_year = float(model.coef_[0]) * 365.25
         r2 = float(r2_score(segment_values, predictions))
         return {
-            'start_date': segment_dates.iloc[0],
-            'end_date': segment_dates.iloc[-1],
-            'slope': slope_per_year,
-            'r_squared': r2,
-            'length': len(segment_dates),
-            'mean_value': float(segment_values.mean()),
-            'std_value': float(segment_values.std(ddof=0)),
-            'model': model,
-            'start_idx': int(start_idx),
-            'end_idx': int(end_idx)
+            "start_date": segment_dates.iloc[0],
+            "end_date": segment_dates.iloc[-1],
+            "slope": slope_per_year,
+            "r_squared": r2,
+            "length": len(segment_dates),
+            "mean_value": float(segment_values.mean()),
+            "std_value": float(segment_values.std(ddof=0)),
+            "model": model,
+            "start_idx": int(start_idx),
+            "end_idx": int(end_idx),
         }
 
     def _fit_global(self, dates, values):
@@ -262,7 +299,7 @@ class BreakDetector:
 
     def _ssr(self, y_true, y_hat):
         err = np.asarray(y_true) - np.asarray(y_hat)
-        return float(np.sum(err ** 2))
+        return float(np.sum(err**2))
 
     def _calculate_break_score(self, segments, all_dates):
         """Quality metric: weighted variance of segments normalized by overall date variance."""
@@ -271,11 +308,11 @@ class BreakDetector:
         total_variance = 0.0
         total_length = 0
         for seg in segments:
-            seg_var = (seg['std_value'] ** 2)
-            total_variance += seg_var * seg['length']
-            total_length += seg['length']
+            seg_var = seg["std_value"] ** 2
+            total_variance += seg_var * seg["length"]
+            total_length += seg["length"]
         if total_length == 0:
-            return float('inf')
+            return float("inf")
         overall_variance = np.array([d.toordinal() for d in all_dates]).var()
         return float((total_variance / total_length) / (overall_variance + 1e-10))
 
@@ -365,28 +402,34 @@ class BreakDetector:
         print(f"Detected {results['total_breaks']} structural break(s)")
 
         # Global fit block
-        gf = results.get('global_fit', None)
+        gf = results.get("global_fit", None)
         if gf:
             print(f"\n🌐 Global Fit (entire focus window):")
             print(f"  Slope: {gf['slope']:+.2f} units/year")
             print(f"  R²: {gf['r_squared']:.3f}")
-            if 'global_ssr' in results and 'segments_ssr' in results:
+            if "global_ssr" in results and "segments_ssr" in results:
                 print(f"  SSR (global):   {results['global_ssr']:.2f}")
                 print(f"  SSR (segments): {results['segments_ssr']:.2f}")
-                delta = results['global_ssr'] - results['segments_ssr']
+                delta = results["global_ssr"] - results["segments_ssr"]
                 print(f"  ΔSSR (global - segments): {delta:.2f}")
-            if results.get('global_chow_F') is not None:
-                Fg = results['global_chow_F']
-                pg = results['global_chow_p']
-                print(f"  Chow (one line vs {max(1,len(results['segments']))} segments): "
-                      f"F={Fg:.2f}, p={pg:.4g}")
+            if results.get("global_chow_F") is not None:
+                Fg = results["global_chow_F"]
+                pg = results["global_chow_p"]
+                print(
+                    f"  Chow (one line vs {max(1,len(results['segments']))} segments): "
+                    f"F={Fg:.2f}, p={pg:.4g}"
+                )
 
         # Break dates and (optional) local Chow tests
-        if results['break_dates']:
+        if results["break_dates"]:
             print("\n🧩 Breakpoints:")
             # Map date -> local Chow if available
-            local_by_date = {lc['break_date'].date(): lc for lc in results.get('local_chow', [])}
-            for i, (bd, align) in enumerate(zip(results['break_dates'], results['icd_transition_alignment'])):
+            local_by_date = {
+                lc["break_date"].date(): lc for lc in results.get("local_chow", [])
+            }
+            for i, (bd, align) in enumerate(
+                zip(results["break_dates"], results["icd_transition_alignment"])
+            ):
                 icd_info = f" (ICD alignment: {align:.2f})" if align > 0.3 else ""
                 line = f"Break {i+1}: {bd.date()}{icd_info}"
                 lc = local_by_date.get(bd.date())
@@ -397,65 +440,115 @@ class BreakDetector:
             print("No break dates to report (forced ICD segments may still be used).")
 
         print("\n📊 SEGMENT ANALYSIS:")
-        for i, seg in enumerate(results['segments']):
-            trend = "↑ INCLINE" if seg['slope'] > 0 else "↓ DECLINE" if seg['slope'] < 0 else "→ FLAT"
-            print(f"\nSegment {i+1}: {seg['start_date'].date()} to {seg['end_date'].date()} {trend}")
+        for i, seg in enumerate(results["segments"]):
+            trend = (
+                "↑ INCLINE"
+                if seg["slope"] > 0
+                else "↓ DECLINE" if seg["slope"] < 0 else "→ FLAT"
+            )
+            print(
+                f"\nSegment {i+1}: {seg['start_date'].date()} to {seg['end_date'].date()} {trend}"
+            )
             print(f"  Slope: {seg['slope']:+.2f} units/year")
             print(f"  R²: {seg['r_squared']:.3f}")
             print(f"  Mean: {seg['mean_value']:.2f}")
             print(f"  Length: {seg['length']} data points")
             if i > 0:
-                prev = results['segments'][i - 1]
-                slope_change = seg['slope'] - prev['slope']
-                mean_change = seg['mean_value'] - prev['mean_value']
-                print(f"  Change from previous: Slope Δ={slope_change:+.2f}, Mean Δ={mean_change:+.2f}")
+                prev = results["segments"][i - 1]
+                slope_change = seg["slope"] - prev["slope"]
+                mean_change = seg["mean_value"] - prev["mean_value"]
+                print(
+                    f"  Change from previous: Slope Δ={slope_change:+.2f}, Mean Δ={mean_change:+.2f}"
+                )
 
-    def _plot_results(self, dates, values, results, hypothesis_name, value_col,
-                      effective_start, effective_end):
+    def _plot_results(
+        self,
+        dates,
+        values,
+        results,
+        hypothesis_name,
+        value_col,
+        effective_start,
+        effective_end,
+    ):
         """Plot data and segment regressions for the focus window."""
         plt.figure(figsize=(12, 6))
-        plt.plot(dates, values, 'o-', label=value_col, alpha=0.6, markersize=4)
+        plt.plot(dates, values, "o-", label=value_col, alpha=0.6, markersize=4)
 
         # Global line across the entire focus window
-        if 'global_fit' in results and results['global_fit'] is not None:
+        if "global_fit" in results and results["global_fit"] is not None:
             date_numeric_all = np.array([d.toordinal() for d in dates]).reshape(-1, 1)
-            global_pred = results['global_fit']['model'].predict(date_numeric_all)
-            plt.plot(dates, global_pred, linestyle='--', linewidth=2,
-                     label=f'Global fit (slope: {results["global_fit"]["slope"]:+.2f}/yr)')
+            global_pred = results["global_fit"]["model"].predict(date_numeric_all)
+            plt.plot(
+                dates,
+                global_pred,
+                linestyle="--",
+                linewidth=2,
+                label=f'Global fit (slope: {results["global_fit"]["slope"]:+.2f}/yr)',
+            )
 
-        colors = ['red', 'green', 'purple', 'orange', 'brown']
-        for i, seg in enumerate(results['segments']):
-            seg_mask = (dates >= seg['start_date']) & (dates <= seg['end_date'])
+        colors = ["red", "green", "purple", "orange", "brown"]
+        for i, seg in enumerate(results["segments"]):
+            seg_mask = (dates >= seg["start_date"]) & (dates <= seg["end_date"])
             seg_dates = dates[seg_mask]
             seg_values = values[seg_mask]
             if len(seg_dates) == 0:
                 continue
             date_numeric = np.array([d.toordinal() for d in seg_dates]).reshape(-1, 1)
-            predicted = seg['model'].predict(date_numeric)
-            plt.plot(seg_dates, predicted, color=colors[i % len(colors)],
-                     linewidth=3, label=f'Segment {i+1} (slope: {seg["slope"]:+.2f}/yr)')
-            plt.plot(seg_dates, seg_values, 'o', color=colors[i % len(colors)],
-                     markersize=3, alpha=0.5)
+            predicted = seg["model"].predict(date_numeric)
+            plt.plot(
+                seg_dates,
+                predicted,
+                color=colors[i % len(colors)],
+                linewidth=3,
+                label=f'Segment {i+1} (slope: {seg["slope"]:+.2f}/yr)',
+            )
+            plt.plot(
+                seg_dates,
+                seg_values,
+                "o",
+                color=colors[i % len(colors)],
+                markersize=3,
+                alpha=0.5,
+            )
 
         # Mark break points (vertical lines)
-        for bd in results['break_dates']:
-            plt.axvline(x=bd, color='black', linestyle='--', alpha=0.7, linewidth=2)
-            plt.text(bd, plt.ylim()[1] * 0.95, f'Break\n{bd.date()}',
-                     ha='center', va='top', rotation=90, backgroundcolor='white', fontweight='bold')
+        for bd in results["break_dates"]:
+            plt.axvline(x=bd, color="black", linestyle="--", alpha=0.7, linewidth=2)
+            plt.text(
+                bd,
+                plt.ylim()[1] * 0.95,
+                f"Break\n{bd.date()}",
+                ha="center",
+                va="top",
+                rotation=90,
+                backgroundcolor="white",
+                fontweight="bold",
+            )
 
         # Mark ICD transition and the one-year middle cut if inside focus
-        plt.axvline(x=self.icd_transition, color='blue', linestyle='-', alpha=0.6,
-                    label='ICD-10 Transition', linewidth=2)
+        plt.axvline(
+            x=self.icd_transition,
+            color="blue",
+            linestyle="-",
+            alpha=0.6,
+            label="ICD-10 Transition",
+            linewidth=2,
+        )
         middle_cut = pd.Timestamp("2016-10-01")
         if dates.min() <= middle_cut <= dates.max():
-            plt.axvline(x=middle_cut, color='blue', linestyle='-', alpha=0.4, linewidth=2)
+            plt.axvline(
+                x=middle_cut, color="blue", linestyle="-", alpha=0.4, linewidth=2
+            )
 
         # Focus boundaries
-        plt.axvline(x=effective_start, color='gray', linestyle=':', alpha=0.3)
-        plt.axvline(x=effective_end, color='gray', linestyle=':', alpha=0.3)
+        plt.axvline(x=effective_start, color="gray", linestyle=":", alpha=0.3)
+        plt.axvline(x=effective_end, color="gray", linestyle=":", alpha=0.3)
 
-        plt.title(f'Break Analysis: {hypothesis_name}\nFocus: {effective_start.date()} to {effective_end.date()}')
-        plt.xlabel('Date')
+        plt.title(
+            f"Break Analysis: {hypothesis_name}\nFocus: {effective_start.date()} to {effective_end.date()}"
+        )
+        plt.xlabel("Date")
         plt.ylabel(value_col)
         plt.legend()
         plt.grid(True, alpha=0.3)

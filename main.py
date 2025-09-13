@@ -33,10 +33,10 @@ def run_pipeline(user_desc):
     # Phase 1/2: Extract medical concepts AND ICD codes
     print("Phase 1: Extracting medical concepts and ICD codes...")
     concept_result = get_concept(user_desc)
-    extracted_concepts = concept_result["concepts"]
+    # extracted_concepts = concept_result["concepts"]
     codes = {"icd9": concept_result["icd9"], "icd10": concept_result["icd10"]}
     
-    print(f"Extracted concepts: {extracted_concepts}")
+    # print(f"Extracted concepts: {extracted_concepts}")
     print(f"Found {len(codes['icd9'])} ICD-9 codes and {len(codes['icd10'])} ICD-10 codes")
 
     # Phase 2.5: Baseline break analysis for hypothesis generation

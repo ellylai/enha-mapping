@@ -47,3 +47,34 @@ def prompt_llm(prompt: str):
                 raise e
 
     return ""
+
+    # response = """ICD9: 30420, 30421, 30422, 30423, 30560, 30561, 30562, 30563, 76075, 97081
+    # ICD10: F1410, F1411, F14120, F14121, F14122, F14129, F1414, F14150, F14151, F14159,F14180,F14181, F14182, F14188,F1419,F1420,
+    #     F1421,
+    #     F14220,
+    #     F14221,
+    #     F14222,
+    #     F14229,
+    #     F1423,
+    #     F1424,
+    #     F14250,
+    #     F14251,
+    #     F14259,
+    #     F14280,
+    #     F14281,
+    #     F14282,
+    #     F14288,
+    #     F1429,
+    #     F1490,
+    #     F14920,
+    #     F14921, F14922
+    #     F14929, F1494
+    #     F14950, F14951
+    #     F14959, F14980
+    #     F14981, F14982
+    #     F14988, F1499, P0441"""
+    # print(f"USING THE FOLLOWING MOCK (VALID) MAPPING: {response}")
+    # print(f"FULL PROMPT TO LLM: {prompt}")
+    # response = "ICD9: 4250, 42511, 42518, 4252, 4253, 4254, 4255, 4257, 4258, 4259\nICD10: I420, I421, I422, I423, I424, I425, I426, I427, I428"
+    # print("USING THE FOLLOWING MOCK (BAD) MAPPING:")
+    # return response

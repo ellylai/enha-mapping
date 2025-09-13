@@ -2,7 +2,8 @@ from google import genai
 import os
 from dotenv import load_dotenv
 from google.genai import types
-
+import time
+import google.api_core.exceptions
 
 # Load environment variables from .env file at the project root
 load_dotenv()
@@ -24,13 +25,29 @@ def prompt_llm(prompt: str):
 
     client = genai.Client(api_key=api_key)
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
-
-    # Configure generation settings
     config = types.GenerateContentConfig(tools=[grounding_tool])
     response = client.models.generate_content(
         model="gemini-2.5-flash", contents=prompt, config=config
     )
-    return response.text
+
+    # catch too many retries so it doesn't crash
+    retries = 3
+    delay = 2
+    for i in range(retries):
+        try:
+            # The 'tools' parameter is now part of the model, not the generate_content call
+            response = client.models.generate_content(prompt)
+            return response.text
+        except google.api_core.exceptions.ResourceExhausted as e:
+            if i < retries - 1:
+                print(f"Rate limit exceeded. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2
+            else:
+                print("Rate limit exceeded. Max retries reached.")
+                raise e
+
+    return ""
 
     # response = """ICD9: 30420, 30421, 30422, 30423, 30560, 30561, 30562, 30563, 76075, 97081
     # ICD10: F1410, F1411, F14120, F14121, F14122, F14129, F1414, F14150, F14151, F14159,F14180,F14181, F14182, F14188,F1419,F1420,

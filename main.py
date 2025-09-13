@@ -16,6 +16,9 @@ from time_series_evaluator.create_time_series import (
 from time_series_evaluator.smoothness_evaluator import calculate_smoothness_score
 from ts_results.plot_timeseries import plot_ts
 
+# Neethi: This contains new code to detect the breaks in our timeseries.
+from break_detection.break_detector import break_detector
+
 
 def run_pipeline(user_desc):
     """Run the ICD code mapping pipeline"""
@@ -36,18 +39,29 @@ def run_pipeline(user_desc):
     print(f"Extracted concepts: {extracted_concepts}")
     print(f"Found {len(codes['icd9'])} ICD-9 codes and {len(codes['icd10'])} ICD-10 codes")
 
+    # Phase 2.5: Baseline break analysis for hypothesis generation
+    baseline_break_analysis = break_detector.detect_breaks(
+        claims_df,
+        value_col=None,            # auto-pick count/rolling col if available
+        hypothesis_name="baseline",
+        plot_results=False
+    )
+
+    artificial_break = baseline_break_analysis["break_dates"][0] if baseline_break_analysis["break_dates"] else None
+    artificial_slope = baseline_break_analysis["segments"][0]["slope"] if baseline_break_analysis["segments"] else None
+
     # Phase 3: Generate hypotheses
     print("Phase 3: Generating hypotheses...")
-    hypotheses = generate_hypotheses(codes)
+    hypotheses = generate_hypotheses(codes, artificial_break, artificial_slope)
     print(f"Generated {len(hypotheses)} hypotheses to test.")
 
-    # Phase 4: Evaluate hypotheses
-    print("Phase 4: Evaluating hypotheses...")
+    # Phase 4: Evaluate hypotheses with break detection
+    print("Phase 4: Evaluating hypotheses with break detection...")
     results = []
     for h in hypotheses:
         print(f"Testing hypothesis: '{h['name']}'...")
 
-        # Flag, then create time series, then score
+        # Flag, then create time series
         target_flag_col = f"flag_{h['name'].replace(' ', '_')}"
         all_codes = list(h["icd9_codes"]) + list(h["icd10_codes"])
 
@@ -62,42 +76,80 @@ def run_pipeline(user_desc):
             cap_year=config["cap_year"],
         )
 
-        # Dynamically find the rolling sum column name created by create_timeseries
+        # Find the rolling sum column
         rolling_col_name = [
-            col
-            for col in ts.columns
+            col for col in ts.columns 
             if col.startswith(f"{target_flag_col.split('_')[0]}_count")
         ][0]
 
-        score = calculate_smoothness_score(ts, config["date_colname"], rolling_col_name)
-
-        results.append(
-            {
-                "hypothesis": h,
-                "score": score,
-                "timeseries": ts,
-                "rolling_col": rolling_col_name,
-            }
+        # Calculate smoothness score
+        smoothness_score = calculate_smoothness_score(ts, config["date_colname"], rolling_col_name)
+        
+        # NEW: Perform break detection analysis
+        break_analysis = break_detector.detect_breaks(
+            ts, 
+            value_col=rolling_col_name, 
+            hypothesis_name=h['name'],
+            plot_results=False  # Can set to True for debugging
         )
-        print(f"  Smoothness Score: {score:.4f}")
+        
+        # Combine scores (you can adjust weights)
+        combined_score = smoothness_score + break_analysis['break_score'] * 0.5
 
-    # Phase 5: Select best result
-    print("Phase 5: Selecting best result...")
-    best_result = min(results, key=lambda x: x["score"])
+        results.append({
+            "hypothesis": h,
+            "smoothness_score": smoothness_score,
+            "break_score": break_analysis['break_score'],
+            "combined_score": combined_score,
+            "timeseries": ts,
+            "rolling_col": rolling_col_name,
+            "break_analysis": break_analysis
+        })
+        
+        print(f"  Smoothness: {smoothness_score:.4f}, Break: {break_analysis['break_score']:.4f}, Combined: {combined_score:.4f}")
+
+    # Phase 5: Select best result considering breaks
+    print("Phase 5: Selecting best result considering break analysis...")
+    best_result = min(results, key=lambda x: x["combined_score"])
     best_hypothesis = best_result["hypothesis"]
 
-    print(
-        f"Best hypothesis: '{best_hypothesis['name']}' with score {best_result['score']:.4f}"
+    print(f"Best hypothesis: '{best_hypothesis['name']}'")
+    print(f"  Smoothness: {best_result['smoothness_score']:.4f}")
+    print(f"  Break score: {best_result['break_score']:.4f}")
+    print(f"  Combined: {best_result['combined_score']:.4f}")
+
+    # Show detailed break analysis for the best result
+    print("\n📊 Detailed break analysis for best hypothesis:")
+    break_detector.detect_breaks(
+        best_result["timeseries"], 
+        value_col=best_result["rolling_col"], 
+        hypothesis_name=best_hypothesis['name'],
+        plot_results=True
     )
 
-    ts_to_plot = best_result["timeseries"]
-    rolling_col_name = best_result["rolling_col"]
+    # Phase 6: Refinement feedback (could feed back to LLM)
+    _provide_refinement_feedback(best_result)
 
-    plot_ts(
-        ts_to_plot, date_col=config["date_colname"], target_rolling_col=rolling_col_name
-    )
+    return best_result
 
-    return best_result["timeseries"], best_result["score"]
+
+def _provide_refinement_feedback(best_result):
+    """Provide feedback for hypothesis refinement based on break analysis"""
+    break_analysis = best_result["break_analysis"]
+    
+    if break_analysis['total_breaks'] > 0:
+        print("\n💡 REFINEMENT SUGGESTIONS:")
+        print("The time series shows structural breaks that may indicate:")
+        
+        for i, (break_date, alignment) in enumerate(zip(break_analysis['break_dates'], 
+                                                      break_analysis['icd_transition_alignment'])):
+            if alignment > 0.7:
+                print(f"  - Break near ICD transition ({break_date.date()}): Consider ICD-9/ICD-10 mapping issues")
+            else:
+                print(f"  - Break at {break_date.date()}: Check code specificity or clinical relevance")
+    
+    if break_analysis['break_score'] > 0.1:
+        print("  - High break score: Hypothesis may need better code selection")
 
 
 if __name__ == "__main__":
@@ -116,3 +168,4 @@ if __name__ == "__main__":
         )
 
     run_pipeline(USER_INPUT_DESC)
+

@@ -12,8 +12,6 @@ from mapping.time_series_evaluator.create_time_series import (
 )
 from mapping.ts_results.plot_timeseries import plot_ts
 from mapping.break_detection.break_detector import break_detector
-from dotenv import load_dotenv
-load_dotenv()
 
 def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00):
     """

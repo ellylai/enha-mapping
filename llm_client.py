@@ -9,6 +9,11 @@ class OllamaClient:
         self.model = model
         self.base_url = base_url
         self.use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
+        
+    def _mock_fallback(self, prompt):
+        """Fallback to mock responses if Ollama is unavailable"""
+        print("--- USING MOCK LLM (Ollama unavailable) ---")
+        return "Mock response - Ollama unavailable"
     
     def invoke(self, prompt: str, system_message: str = None) -> str:
         # Invoke the LLM with a prompt and optional system message
@@ -70,11 +75,6 @@ class OllamaClient:
             print("🔄 Falling back to mock responses...")
             return self._mock_fallback(prompt)
     
-    def _mock_fallback(self, prompt):
-        """Fallback to mock responses if Ollama is unavailable"""
-        print("--- USING MOCK LLM (Ollama unavailable) ---")
-        
-        return "Mock response - Ollama unavailable"
 
 # Global instance
 llm_client = OllamaClient()

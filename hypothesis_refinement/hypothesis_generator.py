@@ -3,6 +3,7 @@
 import pandas as pd
 import typing
 from llm_client import OllamaClient
+from icd_mapping_script import icd_map
 
 Hypothesis = typing.TypedDict(
     "Hypothesis", {"name": str, "icd9_codes": set[str], "icd10_codes": set[str]}
@@ -10,23 +11,38 @@ Hypothesis = typing.TypedDict(
 
 
 def generate_hypotheses(
-    codes: list[str], artificial_break: bool, artificial_slope: float
+    codes: list[str], artificial_break: bool, artificial_slope: float, user_input_desc
 ) -> list[Hypothesis]:
     """
     MOCK FUNCTION, NOT IMPLEMENTED
     Generates mapping hypotheses using GEM files and agentic search placeholders.
     """
+    system_message = "You are an expert ICD medical coding specialist. After your analysis, provide only the answer, without any commentary or text response."
+
+    combined_prompt = f"""Medical description: "{user_input_desc}"
+
+        Please think carefully about this medical description and provide comprehensive ICD coding. Consider all relevant conditions, subtypes, complications, comorbidities, severity levels, and related medical conditions.
+
+        After your analysis, respond with ONLY this exact format:
+        ICD9: code1, code2, code3, ...
+        ICD10: code1, code2, code3, ...
+
+        Example format:
+        ICD9: 250.0, 250.4, 250.6, 250.5, 362.0, 581.81, 250.1
+        ICD10: E11.9, E11.22, E11.21, E11.40, E11.311, E11.620, E11.10
+
+        Analyze and respond:"""
 
     # BASE CASE: NO CODES GENERATED YET
     if not codes:
         # GENERATE NAIVE CODES
-        base_prompt = "Give me ONLY comma-separated ICD10 codes for cocaine abuse. Do not provide any other text response."
+        base_prompt = "Give me ONLY comma-separated ICD10 codes. Do not provide any other text response."
         response = OllamaClient.invoke(prompt=base_prompt)
-        naive_icd10_codes = [str(code).strip() for code in response.split(",")]
+        response_codes = response.strip(["ICD10:", "ICD9:"])
+        naive_icd10_codes = [str(code).strip() for code in response_codes.split(",")]
         print(f"Naive ICD10 codes generated: {naive_icd10_codes}")
-        # TO COMPLETE: map to ICD9 using the files
-        # naive_icd9_codes = map(naive_icd10_codes)
-        full_list = naive_icd10_codes  # + naive_icd9_codes
+        naive_icd9_codes = icd_map(naive_icd10_codes)
+        full_list = naive_icd10_codes + naive_icd9_codes
         return full_list
 
     # CASE 1: BAD CODE MAPPING

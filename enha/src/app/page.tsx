@@ -3,12 +3,12 @@
 import { useState } from "react";
 import TextBox from "@/components/TextBox";
 import Loading from "@/components/Loading";
-import ResultsView, { type ResultsPayload } from "@/components/ResultsView";
+import ResultsView, { type BestResult } from "@/components/ResultsView";
 
 export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ResultsPayload | null>(null);
+  const [data, setData] = useState<BestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // When user submits, flip to loading. (You can kick off your async work here later.)
@@ -24,10 +24,8 @@ export default function Home() {
         body: JSON.stringify({ prompt: v }),
       });
       const json = await res.json();
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || "Processing failed");
-      }
-      setData(json.data);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Processing failed");
+      setData(json.data as BestResult);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
     } finally {
@@ -52,7 +50,7 @@ export default function Home() {
         row-start-2 justify-self-stretch w-full 
         max-w-3xl mx-auto flex flex-col gap-8 items-stretch">
       
-        {!data && !error && (
+        {!data && !error && !loading && (
           <>
             <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
                 <li className="mb-2 tracking-[-.01em]">
@@ -72,6 +70,8 @@ export default function Home() {
           </>
         )}
 
+        {loading && <Loading label="Analyzing hypothesis and refining..." />}
+
         {error && (
           <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
             {error}
@@ -79,7 +79,6 @@ export default function Home() {
         )}
 
         {data && <ResultsView data={data} />}
-
 
       </main>
     </div>

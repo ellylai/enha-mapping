@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys, os, json, io, datetime, base64, warnings
 from contextlib import redirect_stdout
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 os.chdir(REPO_ROOT)
 
-from main import run_pipeline  # now returns {"best_result","history","best_index"}
+from main import run_pipeline  # returns the single BEST result (dict) per your code
 
 # ---------- helpers ----------
 def df_to_table(df: pd.DataFrame, limit: int = 200):
@@ -55,12 +56,11 @@ def to_primitive(x):
         return df_to_table(x)
     return {"__type__": type(x).__name__}
 
-from typing import Optional
 def plot_timeseries_png(ts: pd.DataFrame, ycol: str) -> Optional[str]:
     if ts is None or not isinstance(ts, pd.DataFrame) or not isinstance(ycol, str) or ycol not in ts.columns:
         return None
 
-    # choose x
+    # choose x axis
     if isinstance(ts.index, pd.DatetimeIndex):
         x = ts.index
         xlab = ts.index.name or "date"
@@ -92,55 +92,43 @@ def json_out(payload):
 def main():
     prompt = sys.argv[1] if len(sys.argv) > 1 else ""
 
+    # Your LLM client needs this; fail fast if missing
     if not os.environ.get("GEMINI_API_KEY"):
         json_out({"ok": False, "error": "GEMINI_API_KEY is not set on the server."})
         return
 
     try:
-        # capture pipeline prints in stderr; keep stdout for JSON
+        # Keep stdout clean; pipeline prints -> stderr
         with redirect_stdout(sys.stderr):
-            result = run_pipeline(prompt)
+            best_result = run_pipeline(prompt)  # <-- returns the BEST single result
 
-        # Backward-compatible handling:
-        # allow run_pipeline to return either best_result only or the new dict
-        history = []
-        best_idx = 0
-        if isinstance(result, dict) and "history" in result:
-            history = result["history"] or []
-            best_idx = int(result.get("best_index", 0) or 0)
-            best_result = result.get("best_result", history[best_idx] if history else None)
-        else:
-            best_result = result
-            history = [result] if result else []
-            best_idx = 0
+        if not best_result:
+            json_out({"ok": False, "error": "No result produced"})
+            return
 
-        # Build iterations array
-        iterations = []
-        for i, item in enumerate(history):
-            hyp = (item or {}).get("hypothesis", {}) or {}
-            ts  = (item or {}).get("timeseries")
-            y   = (item or {}).get("rolling_col")
+        hyp = (best_result or {}).get("hypothesis", {}) or {}
+        ts  = (best_result or {}).get("timeseries")
+        y   = (best_result or {}).get("rolling_col")
 
-            iterations.append({
-                "index": i,
-                "hypothesis": {
-                    "name": hyp.get("name"),
-                    "icd9_codes": to_primitive(hyp.get("icd9_codes")),
-                    "icd10_codes": to_primitive(hyp.get("icd10_codes")),
-                },
-                "score": to_primitive((item or {}).get("score")),
-                "artificial_break": to_primitive((item or {}).get("artificial_break")),
-                "artificial_slope": to_primitive((item or {}).get("artificial_slope")),
-                "comment": to_primitive((item or {}).get("comment")),
-                "timeseries": to_primitive(ts) if isinstance(ts, pd.DataFrame) else None,
-                "rolling_col": to_primitive(y),
-                "plot_png": plot_timeseries_png(ts, y) if isinstance(ts, pd.DataFrame) and isinstance(y, str) else None,
-            })
+        plot_png = plot_timeseries_png(ts, y) if isinstance(ts, pd.DataFrame) and isinstance(y, str) else None
 
-        # Convenience: flattened best
-        best = iterations[best_idx] if iterations else None
+        payload = {
+            "hypothesis": {
+                "name": hyp.get("name"),
+                "icd9_codes": to_primitive(hyp.get("icd9_codes")),
+                "icd10_codes": to_primitive(hyp.get("icd10_codes")),
+            },
+            "score": to_primitive((best_result or {}).get("score")),
+            "artificial_break": to_primitive((best_result or {}).get("artificial_break")),
+            "artificial_slope": to_primitive((best_result or {}).get("artificial_slope")),
+            "comment": to_primitive((best_result or {}).get("comment")),
+            "timeseries": to_primitive(ts) if isinstance(ts, pd.DataFrame) else None,
+            "rolling_col": to_primitive(y),
+            "break_analysis": to_primitive((best_result or {}).get("break_analysis")),
+            "plot_png": plot_png,
+        }
 
-        json_out({"ok": True, "data": {"iterations": iterations, "bestIndex": best_idx, "best": best}})
+        json_out({"ok": True, "data": payload})
 
     except Exception as e:
         json_out({"ok": False, "error": str(e)})

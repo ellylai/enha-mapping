@@ -27,13 +27,7 @@ def get_concept(user_input_desc: str) -> dict:
 
     We expect there to be generally more identified ICD10 codes than ICD9 since there's usually a many-to-one relationship from ICD10 to ICD9. 
 
-    Respond with ONLY this exact format:
-    CONDITIONS: condition1, condition2, condition3, ...
-    ICD9: code1, code2, code3, ...
-    ICD10: code1, code2, code3, ...
-
     Example format:
-    CONDITIONS: diabetes mellitus, diabetic complications, diabetic nephropathy, diabetic retinopathy, diabetic neuropathy, diabetic ketoacidosis
     ICD9: 250.0, 250.4, 250.6, 250.5, 362.0, 581.81, 250.1
     ICD10: E11.9, E11.22, E11.21, E11.40, E11.311, E11.620, E11.10
 

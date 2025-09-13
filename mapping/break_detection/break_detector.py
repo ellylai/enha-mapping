@@ -556,10 +556,9 @@ class BreakDetector:
         ax.legend()
         ax.grid(True, alpha=0.3)
         plt.xticks(rotation=45)
-        fig.tight_layout()
-
-        plt.show()  
-        return fig   
+        plt.tight_layout()
+        plotname = "_".join([w for w in hypothesis_name.split(" ")])
+        plt.savefig(f"figures/{plotname}.png")
 
 
 # Global instance: defaults to forcing ICD-based segments; no explicit focus -> full dataset

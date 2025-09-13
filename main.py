@@ -1,5 +1,4 @@
 # python main.py
-
 import pandas as pd
 
 # Import functions from our phases
@@ -13,6 +12,8 @@ from time_series_evaluator.create_time_series import (
 )
 from ts_results.plot_timeseries import plot_ts
 from break_detection.break_detector import break_detector
+from dotenv import load_dotenv
+load_dotenv()
 
 def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00):
     """
@@ -45,7 +46,7 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
     break_analysis = break_detector.detect_breaks(
         ts,
         value_col=rolling_col_name,
-        hypothesis_name=f"{hypothesis["name"]}",
+        hypothesis_name=f"{hypothesis['name']}",
         plot_results=True,
     )
 

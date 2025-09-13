@@ -75,7 +75,7 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
     }
 
 
-def run_pipeline(user_desc, max_iterations=3, break_threshold = 500.00):
+def run_pipeline(user_desc, max_iterations=5, break_threshold = 500.00):
     """Run the ICD code mapping pipeline"""
     # PARSE INPUT AND LOAD SYNTHETIC TEST DATA
     print(f"Analyzing: '{user_desc}'")

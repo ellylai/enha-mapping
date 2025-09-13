@@ -26,17 +26,16 @@ def prompt_llm(prompt: str):
     client = genai.Client(api_key=api_key)
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(tools=[grounding_tool])
-    response = client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt, config=config
-    )
 
     # catch too many retries so it doesn't crash
     retries = 3
-    delay = 2
+    delay = 4
     for i in range(retries):
         try:
             # The 'tools' parameter is now part of the model, not the generate_content call
-            response = client.models.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", contents=prompt, config=config
+            )
             return response.text
         except google.api_core.exceptions.ResourceExhausted as e:
             if i < retries - 1:

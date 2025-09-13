@@ -1,21 +1,12 @@
 ellyse - heeseung bias
+
 evelyn - jay bias
+
 neethi - heeseung bias
 
-1: `/interpreter`
-Prompt for some target category
-→ LLM (maybe specialized one) come up with “keywords”
-
-2: `/icd_generator`
-→ generate naive mapping (without web search capability)
-
-3: `/mapping_refinement`
-→ LLM to search the web for some articles or information about those codes
-→ edit the code mapping
-
-4: `/time_series_evaluator`
-plot it on a timeseries and send it back to LLM
-→ evaluate (is there an artificial incline or decline) → quantify the issue →
-go back to step 3
-
-5: `/ts_results`
+PIPELINE:
+1. Generate a hypothesis mapping (using LLM) from the user prompt (and store it)
+2. Plot as a time series
+3. Evaluate the hypothesis using the statistical Chow test on the time series:
+4. If hypothesis is valid, return hypothesis mapping
+5. Else hypothesis is invalid, refine the hypothesis (go back to step 1 with an updated LLM prompt)

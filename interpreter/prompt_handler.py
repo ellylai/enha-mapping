@@ -4,6 +4,8 @@ import typing
 import sys
 import os
 
+from .llm_client2 import prompt_llm
+
 # Add parent directory to path to import llm_client
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from .llm_client import llm_client
@@ -31,7 +33,8 @@ def get_concept(user_input_desc: str) -> dict:
 
     Begin mapping analysis:"""
 
-    response = llm_client.invoke(combined_prompt, system_message)
+    # response = llm_client.invoke(combined_prompt, system_message)
+    response = prompt_llm(combined_prompt) # New Gemini API
     print(f"Raw LLM response: '{response}'")
     
     # Parse the structured response

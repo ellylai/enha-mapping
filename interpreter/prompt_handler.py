@@ -8,14 +8,11 @@ from .llm_client2 import prompt_llm
 
 # Add parent directory to path to import llm_client
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from .llm_client import llm_client
 
-def get_concept(user_input_desc: str) -> dict:
+def get_concept(user_input_desc: str, supplementary_prompt: str = "") -> dict:
     # Directly converts user input to relevant ICD codes using LLM.
     # Returns both medical concepts and ICD codes in one step.
   
-    system_message = """You are a medical coding education assistant helping with ICD code mapping for academic research purposes. This is NOT for medical diagnosis or treatment. You are helping map medical terminology to standardized ICD codes for data analysis and educational purposes only. Please provide the requested coding information."""
-
     # Combined prompt that extracts concepts AND suggests ICD codes
     combined_prompt = f"""ACADEMIC RESEARCH TASK - ICD Code Mapping Exercise
 
@@ -27,6 +24,8 @@ def get_concept(user_input_desc: str) -> dict:
 
     We expect there to be generally more identified ICD10 codes than ICD9 since there's usually a many-to-one relationship from ICD10 to ICD9. 
 
+    {supplementary_prompt}
+    
     Respond with ONLY this exact format:
     ICD9: code1, code2, code3, ...
     ICD10: code1, code2, code3, ...

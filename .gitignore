@@ -2,3 +2,5 @@
 .env
 *.pyc
 synthetic_dataset_massive.csv
+enha-server-firebase-adminsdk-fbsvc-d876f169cd.json
+enha/src/lib/firebase.ts

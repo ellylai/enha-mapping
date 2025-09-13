@@ -3,6 +3,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import json
+import os
 
 # Import functions from our phases
 from interpreter.prompt_handler import get_concept
@@ -13,80 +15,17 @@ from time_series_evaluator.create_time_series import (
     clean_data,
     get_input,
 )
-from time_series_evaluator.smoothness_evaluator import calculate_smoothness_score
 from ts_results.plot_timeseries import plot_ts
-
-# Neethi: This contains new code to detect the breaks in our timeseries.
 from break_detection.break_detector import break_detector
 
+def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00):
+    """
+    Consolidated function to evaluate a single hypothesis.
+    It creates a time series and runs break detection.
+    """
 
-def run_pipeline(user_desc):
-    """Run the ICD code mapping pipeline"""
-    print(f"Analyzing: '{user_desc}'")
-    config = get_input(user_desc)
-
-    # Load and prepare data
-    print("Loading synthetic claims data...")
-    claims_df = pd.read_csv(config["data_filepath"])
-    claims_df = clean_data(claims_df, config["target_colnames"])
-
-    # Phase 1/2: Extract medical concepts AND ICD codes
-    print(
-        "Phase 1: Extracting medical concepts and ICD codes with function 'generate_hypotheses'..."
-    )
-    base_hypothesis_result = generate_hypotheses(
-        codes=dict(),
-        artificial_break=None,
-        artificial_slope=None,
-        user_input_desc=config["target_category"],
-    )
-    codes = {
-        "icd9": base_hypothesis_result["icd9_codes"],
-        "icd10": base_hypothesis_result["icd10_codes"],
-    }
-
-    print(
-        f"Found {len(codes['icd9'])} ICD-9 codes and {len(codes['icd10'])} ICD-10 codes"
-    )
-
-    # Phase 2.5: Baseline break analysis for hypothesis generation
-    baseline_break_analysis = break_detector.detect_breaks(
-        claims_df,
-        value_col=None,  # auto-pick count/rolling col if available
-        hypothesis_name="baseline",
-        plot_results=False,
-    )
-
-    artificial_break = (
-        baseline_break_analysis["break_dates"][0]
-        if baseline_break_analysis["break_dates"]
-        else None
-    )
-    artificial_slope = (
-        baseline_break_analysis["segments"][0]["slope"]
-        if baseline_break_analysis["segments"]
-        else None
-    )
-
-    print(
-        f"FOUND ARTIFICAL BREAK: {artificial_break}\nFOUND ARTIFICIAL SLOPE: {artificial_slope}"
-    )
-
-    # Phase 3: Generate hypotheses
-    print("Phase 3: Generating NEW hypotheses...")
-    new_hypothesis = generate_hypotheses(
-        codes, artificial_break, artificial_slope, config["target_category"]
-    )
-
-    # Phase 4: Evaluate hypotheses with break detection
-    print("Phase 4: Evaluating hypothesis with break detection...")
-    results = []
-    h = new_hypothesis
-    print(f"Testing hypothesis: '{h['name']}'...")
-
-    # Flag, then create time series
-    target_flag_col = f"flag_{h['name'].replace(' ', '_')}"
-    all_codes = list(h["icd9_codes"]) + list(h["icd10_codes"])
+    target_flag_col = f"flag_{hypothesis['name'].replace(' ', '_')}"
+    all_codes = list(hypothesis["icd9_codes"]) + list(hypothesis["icd10_codes"])
 
     flagged_df = flag_dataframe(
         claims_df.copy(), all_codes, config["target_colnames"], target_flag_col
@@ -99,57 +38,111 @@ def run_pipeline(user_desc):
         cap_year=config["cap_year"],
     )
 
-    # Find the rolling sum column
+    # Find the rolling sum column name
     rolling_col_name = [
         col
         for col in ts.columns
         if col.startswith(f"{target_flag_col.split('_')[0]}_count")
     ][0]
 
-    # Calculate smoothness score
-    smoothness_score = calculate_smoothness_score(
-        ts, config["date_colname"], rolling_col_name
-    )
-
-    # NEW: Perform break detection analysis
+    # Perform break detection analysis
     break_analysis = break_detector.detect_breaks(
         ts,
         value_col=rolling_col_name,
-        hypothesis_name=h["name"],
-        plot_results=False,  # Can set to True for debugging
+        hypothesis_name=f"{hypothesis["name"]}",
+        plot_results=True,
     )
 
-    # Combine scores (you can adjust weights)
-    combined_score = smoothness_score + break_analysis["break_score"] * 0.5
+    score = 0
+    if break_analysis.get("local_chow"):
+        f_stats = [bp.get("F", 0) for bp in break_analysis["local_chow"]]
+        if f_stats:
+            score = max(f_stats) # Score is the F-statistic of the worst break
+    
+    artificial_slope = (
+            break_analysis["segments"][1]["slope"] if break_analysis["segments"] else None
+        )
+    if artificial_slope > 0:
+        comment = "The slope of the break area is artificially and significantly positive. There are either extra ICD10 codes or too few ICD9 codes in this set."
+    else:
+        comment = "The slope of the break area is artificially and significantly negative. There are either extra ICD9 codes or too few ICD10 codes in this set."
+    
+    return {
+        "hypothesis": hypothesis,
+        "score": score,  # Use the new, more meaningful score
+        "timeseries": ts,
+        "rolling_col": rolling_col_name,
+        "artificial_break": score > break_threshold,
+        "artificial_slope": artificial_slope,
+        "comment": comment,
+        "break_analysis": break_analysis,
+    }
 
-    results.append(
-        {
-            "hypothesis": h,
-            "smoothness_score": smoothness_score,
-            "break_score": break_analysis["break_score"],
-            "combined_score": combined_score,
-            "timeseries": ts,
-            "rolling_col": rolling_col_name,
-            "break_analysis": break_analysis,
-        }
-    )
 
+def run_pipeline(user_desc, max_iterations=3, break_threshold = 500.00):
+    """Run the ICD code mapping pipeline"""
+    # PARSE INPUT AND LOAD SYNTHETIC TEST DATA
+    print(f"Analyzing: '{user_desc}'")
+    config = get_input(user_desc)
+    print("Loading synthetic claims data...")
+    claims_df = pd.read_csv(config["data_filepath"])
+    claims_df = clean_data(claims_df, config["target_colnames"])
+
+    history = []
+
+    # 1. FIRST PASS: EXTRACT ICD CODES
     print(
-        f"  Smoothness: {smoothness_score:.4f}, Break: {break_analysis['break_score']:.4f}, Combined: {combined_score:.4f}"
+        "PHASE 1: Extracting medical concepts and ICD codes with function 'generate_hypotheses'..."
     )
+    current_hypothesis = generate_hypotheses(
+        history,
+        prev_results=None,
+        user_input_desc=config["target_category"],
+    )
+    current_hypothesis["name"] += " 0"
 
-    # Phase 5: Select best result considering breaks
-    print("Phase 5: Selecting best result considering break analysis...")
-    best_result = min(results, key=lambda x: x["combined_score"])
+    # --- 2. EVALUATION & REFINEMENT LOOP ---
+    print("PHASE 2: EVALUATION & REFINEMENT LOOP")
+    for i in range(max_iterations):
+        print(f"\n--- Iteration {i+1}/{max_iterations} ---")
+
+        # a. Evaluate the current hypothesis
+        print(
+        f"      Hypothesis{i}: Found {len(current_hypothesis['icd9_codes'])} ICD-9 codes and {len(current_hypothesis['icd10_codes'])} ICD-10 codes"
+        )
+        result = evaluate_hypothesis(claims_df, current_hypothesis, config, break_threshold)
+        history.append(result)
+        print(f"  Break Score: {result['score']:.4f}")
+
+        # b. Check for exit condition (if score is good enough)
+        print(f"  Worst Break (F-statistic): {result['score']:.4f}")
+        # A low F-statistic (e.g., < 4) is statistically insignificant.
+        if result["score"] < break_threshold:
+            print(
+                "YAY!! Breaks are no longer statistically significant. Concluding refinement."
+            )
+            break
+
+        # c. Use the result to generate the next hypothesis
+        if i < max_iterations - 1:  # Don't generate a new one on the last loop
+            print("   LOOP: Refining hypothesis based on break analysis...")
+
+            current_hypothesis = generate_hypotheses(
+                history=history,
+                prev_results = result,
+                user_input_desc=config["target_category"],
+            )
+            current_hypothesis["name"] += f" {i+1}"
+
+    # --- 3. FINAL SELECTION ---
+    print("\n--- Phase 3: Selecting Best Result ---")
+    best_result = min(history, key=lambda x: x["score"])
     best_hypothesis = best_result["hypothesis"]
 
-    print(f"Best hypothesis: '{best_hypothesis['name']}'")
-    print(f"  Smoothness: {best_result['smoothness_score']:.4f}")
-    print(f"  Break score: {best_result['break_score']:.4f}")
-    print(f"  Combined: {best_result['combined_score']:.4f}")
-
-    # Show detailed break analysis for the best result
-    print("\n📊 Detailed break analysis for best hypothesis:")
+    print(
+        f"\nBest hypothesis found: '{best_hypothesis['name']}' with a final score of {best_result['score']:.4f}"
+    )
+    print("\n📊 Plotting detailed break analysis for the best result...")
     break_detector.detect_breaks(
         best_result["timeseries"],
         value_col=best_result["rolling_col"],
@@ -157,8 +150,13 @@ def run_pipeline(user_desc):
         plot_results=True,
     )
 
-    # Phase 6: Refinement feedback (could feed back to LLM)
-    _provide_refinement_feedback(best_result)
+    print("\n--- Final Code Sets ---")
+    print(
+        f"ICD-9 Codes ({len(best_hypothesis['icd9_codes'])}): {sorted(list(best_hypothesis['icd9_codes']))}"
+    )
+    print(
+        f"ICD-10 Codes ({len(best_hypothesis['icd10_codes'])}): {sorted(list(best_hypothesis['icd10_codes']))}"
+    )
 
     return best_result
 
@@ -191,12 +189,13 @@ def _provide_refinement_feedback(best_result):
 
 
 if __name__ == "__main__":
-    print("ICD Code Mapping Pipeline")
-
-    USER_INPUT_DESC = input("Your target category: ").strip()
+    print("ICD Code Mapping Pipeline:\n")
+    USER_INPUT_DESC = input(
+        "Enter your target category (e.g., 'cocaine abuse'): "
+    ).strip()
 
     if not USER_INPUT_DESC:
-        print("No input provided, using default example...")
+        print("No input provided, using default example 'cocaine abuse'...")
         USER_INPUT_DESC = "cocaine abuse"
 
     run_pipeline(USER_INPUT_DESC)

@@ -6,13 +6,13 @@ import os
 
 # Add parent directory to path to import llm_client
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from llm_client import llm_client
+from interpreter.llm_client_deprecated import llm_client
 
 
 def get_concept(user_input_desc: str) -> dict:
     # Directly converts user input to relevant ICD codes using LLM.
     # Returns both medical concepts and ICD codes in one step.
-  
+
     system_message = "You are an expert ICD medical coding specialist. Think thoroughly about all relevant conditions, subtypes, complications, and related codes. After your analysis, provide only the structured format requested."
 
     # Combined prompt that extracts concepts AND suggests ICD codes
@@ -34,12 +34,12 @@ def get_concept(user_input_desc: str) -> dict:
 
     response = llm_client.invoke(combined_prompt, system_message)
     print(f"Raw LLM response: '{response}'")
-    
+
     # Parse the structured response
     conditions = []
     icd9_codes = []
     icd10_codes = []
-    
+
     # THIS IS TEMPORARILY COMMENTED OUT TO GO INTO FALLBACK BELOW
     # lines = response.split('\n')
     # for line in lines:
@@ -53,23 +53,40 @@ def get_concept(user_input_desc: str) -> dict:
     #     elif line.startswith('ICD10:'):
     #         icd10_str = line.replace('ICD10:', '').strip()
     #         icd10_codes = [c.strip() for c in icd10_str.split(',') if c.strip()]
-    
+
     # Fallback if parsing fails
 
     if not conditions and not icd9_codes and not icd10_codes:
         print("Parsing failed, using fallback...")
         return {
             "concepts": ["Problematic ICD9 and ICD 10 cardiomyopathy set"],
-            "icd9": ["4250","42511","42518","4252","4253","4254","4255","4257","4258","4259"],  # Fallback ICD-9
-            "icd10": ["I420","I421","I422","I423","I424","I425","I426","I427","I428"]  # Fallback ICD-10
+            "icd9": [
+                "4250",
+                "42511",
+                "42518",
+                "4252",
+                "4253",
+                "4254",
+                "4255",
+                "4257",
+                "4258",
+                "4259",
+            ],  # Fallback ICD-9
+            "icd10": [
+                "I420",
+                "I421",
+                "I422",
+                "I423",
+                "I424",
+                "I425",
+                "I426",
+                "I427",
+                "I428",
+            ],  # Fallback ICD-10
         }
-    
+
     print(f"Extracted conditions: {conditions}")
     print(f"Extracted ICD-9: {icd9_codes}")
     print(f"Extracted ICD-10: {icd10_codes}")
-    
-    return {
-        "concepts": conditions,
-        "icd9": icd9_codes,
-        "icd10": icd10_codes
-    }
+
+    return {"concepts": conditions, "icd9": icd9_codes, "icd10": icd10_codes}

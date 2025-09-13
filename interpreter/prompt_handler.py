@@ -1,6 +1,3 @@
-import requests
-import json
-import typing
 import sys
 import os
 

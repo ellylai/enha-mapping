@@ -1,6 +1,3 @@
-# CORE LOGIC IS HERE. KEEP WORKING...
-
-import pandas as pd
 import typing
 from .icd_parsing_script import icd_map, parse_codes
 from interpreter.prompt_handler import get_concept

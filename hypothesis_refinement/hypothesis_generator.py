@@ -37,7 +37,8 @@ def generate_hypotheses(
     if not codes:
         # GENERATE NAIVE CODES
         base_prompt = "Give me ONLY comma-separated ICD10 codes. Do not provide any other text response."
-        response = OllamaClient.invoke(prompt=base_prompt)
+        full_prompt = system_message + "\n" + combined_prompt + "\n" + base_prompt
+        response = OllamaClient.invoke(prompt=full_prompt)
         response_codes = response.strip(["ICD10:", "ICD9:"])
         naive_icd10_codes = [str(code).strip() for code in response_codes.split(",")]
         print(f"Naive ICD10 codes generated: {naive_icd10_codes}")
@@ -56,7 +57,8 @@ def generate_hypotheses(
             slope_direction = "negative"
             comment = "There are either extra ICD9 codes or too few ICD10 codes."
         new_prompt = f"The following mapping for cocaine abuse does not work. There is a artificially {slope_direction} slope because of the ICD9 to ICD10 code switch. {comment} Please generate a new set of comma-separated codes for me. Do not give me any other response. {codes}"
-        response = OllamaClient.invoke(prompt=new_prompt)
+        full_prompt = system_message + "\n" + combined_prompt + "\n" + new_prompt
+        response = OllamaClient.invoke(prompt=full_prompt)
         new_codes = [str(code).strip() for code in response.split(",")]
         return new_codes
 

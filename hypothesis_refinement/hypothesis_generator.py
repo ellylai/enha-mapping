@@ -2,7 +2,7 @@
 
 import pandas as pd
 import typing
-from llm_client import llm_client
+from interpreter.llm_client import llm_client
 from .  icd_mapping_script import icd_map
 
 Hypothesis = typing.TypedDict(

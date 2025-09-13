@@ -30,16 +30,11 @@ def get_concept(user_input_desc: str) -> dict:
     ICD10: code1, code2, code3, ...
 
     Begin mapping analysis:"""
-    # Example format:
-    # CONDITIONS: diabetes mellitus, diabetic complications, diabetic nephropathy, diabetic retinopathy, diabetic neuropathy, diabetic ketoacidosis
-    # ICD9: 250.0, 250.4, 250.6, 250.5, 362.0, 581.81, 250.1
-    # ICD10: E11.9, E11.22, E11.21, E11.40, E11.311, E11.620, E11.10
 
     response = llm_client.invoke(combined_prompt, system_message)
     print(f"Raw LLM response: '{response}'")
     
     # Parse the structured response
-    # conditions = []
     icd9_codes = []
     icd10_codes = []
     
@@ -47,9 +42,6 @@ def get_concept(user_input_desc: str) -> dict:
     lines = response.split('\n')
     for line in lines:
         line = line.strip()
-        # if line.startswith('CONDITIONS:'):
-        #     conditions_str = line.replace('CONDITIONS:', '').strip()
-        #     conditions = [c.strip() for c in conditions_str.split(',') if c.strip()]
         if line.startswith('ICD9:'):
             icd9_str = line.replace('ICD9:', '').strip()
             icd9_codes = [c.strip() for c in icd9_str.split(',') if c.strip()]
@@ -61,17 +53,14 @@ def get_concept(user_input_desc: str) -> dict:
     if not icd9_codes and not icd10_codes:
         print("Parsing failed, using fallback...")
         return {
-            # "concepts": ["Problematic ICD9 and ICD 10 cardiomyopathy set"],
             "icd9": ["4250","42511","42518","4252","4253","4254","4255","4257","4258","4259"],  # Fallback ICD-9
             "icd10": ["I420","I421","I422","I423","I424","I425","I426","I427","I428"]  # Fallback ICD-10
         }
     
-    # print(f"Extracted conditions: {conditions}")
     print(f"Extracted ICD-9: {icd9_codes}")
     print(f"Extracted ICD-10: {icd10_codes}")
     
     return {
-        # "concepts": conditions,
         "icd9": icd9_codes,
         "icd10": icd10_codes
     }

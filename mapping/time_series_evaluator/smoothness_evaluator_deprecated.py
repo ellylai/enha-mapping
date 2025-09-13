@@ -1,5 +1,4 @@
 import pandas as pd
-import typing
 import statsmodels.api as sm
 
 

@@ -1,18 +1,17 @@
 # python main.py
-
 import pandas as pd
 
 # Import functions from our phases
-from interpreter.prompt_handler import get_concept
-from hypothesis_refinement.hypothesis_generator import generate_hypotheses
-from time_series_evaluator.create_time_series import (
+from mapping.interpreter.prompt_handler import get_concept
+from mapping.hypothesis_refinement.hypothesis_generator import generate_hypotheses
+from mapping.time_series_evaluator.create_time_series import (
     create_timeseries_function,
     flag_dataframe,
     clean_data,
     get_input,
 )
-from ts_results.plot_timeseries import plot_ts
-from break_detection.break_detector import break_detector
+from mapping.ts_results.plot_timeseries import plot_ts
+from mapping.break_detection.break_detector import break_detector
 
 def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00):
     """
@@ -45,7 +44,7 @@ def evaluate_hypothesis(claims_df, hypothesis, config, break_threshold = 500.00)
     break_analysis = break_detector.detect_breaks(
         ts,
         value_col=rolling_col_name,
-        hypothesis_name=f"{hypothesis["name"]}",
+        hypothesis_name=f"{hypothesis['name']}",
         plot_results=True,
     )
 

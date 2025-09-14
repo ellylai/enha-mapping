@@ -44,4 +44,4 @@ def plot_ts(df_timeseries: pd.DataFrame, date_col: str, target_rolling_col: str)
     plt.tight_layout()
     plt.show()
 
-    return plt
+    return fig

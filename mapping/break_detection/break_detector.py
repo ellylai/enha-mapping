@@ -32,6 +32,7 @@ class BreakDetector:
         self.focus_end = None if focus_end is None else pd.Timestamp(focus_end)
         self.force_icd_segments = force_icd_segments
         self.max_breaks = max_breaks
+        self.last_fig = None
 
     def detect_breaks(
         self,
@@ -217,10 +218,9 @@ class BreakDetector:
             "local_chow": local_chow,
         }
 
-        # Output and plot
-        # self._print_results(results, hypothesis_name)
+        # Output and plot (unchanged) — BUT now we capture & remember the Figure
         if plot_results:
-            self._plot_results(
+            fig = self._plot_results(
                 dates,
                 values,
                 results,
@@ -229,6 +229,9 @@ class BreakDetector:
                 effective_start,
                 effective_end,
             )
+            self.last_fig = fig
+        else:
+            self.last_fig = None
 
         return results
 
@@ -471,15 +474,15 @@ class BreakDetector:
         effective_start,
         effective_end,
     ):
-        """Plot data and segment regressions for the focus window."""
-        plt.figure(figsize=(12, 6))
-        plt.plot(dates, values, "o-", label=value_col, alpha=0.6, markersize=4)
+        """Plot data and segment regressions for the focus window; return Figure for logging."""
+        fig, ax = plt.subplots(figsize=(12, 6))  # CHANGED: capture fig/ax
+        ax.plot(dates, values, "o-", label=value_col, alpha=0.6, markersize=4)
 
         # Global line across the entire focus window
         if "global_fit" in results and results["global_fit"] is not None:
             date_numeric_all = np.array([d.toordinal() for d in dates]).reshape(-1, 1)
             global_pred = results["global_fit"]["model"].predict(date_numeric_all)
-            plt.plot(
+            ax.plot(
                 dates,
                 global_pred,
                 linestyle="--",
@@ -496,14 +499,14 @@ class BreakDetector:
                 continue
             date_numeric = np.array([d.toordinal() for d in seg_dates]).reshape(-1, 1)
             predicted = seg["model"].predict(date_numeric)
-            plt.plot(
+            ax.plot(
                 seg_dates,
                 predicted,
                 color=colors[i % len(colors)],
                 linewidth=3,
                 label=f'Segment {i+1} (slope: {seg["slope"]:+.2f}/yr)',
             )
-            plt.plot(
+            ax.plot(
                 seg_dates,
                 seg_values,
                 "o",
@@ -514,10 +517,10 @@ class BreakDetector:
 
         # Mark break points (vertical lines)
         for bd in results["break_dates"]:
-            plt.axvline(x=bd, color="black", linestyle="--", alpha=0.7, linewidth=2)
-            plt.text(
+            ax.axvline(x=bd, color="black", linestyle="--", alpha=0.7, linewidth=2)
+            ax.text(
                 bd,
-                plt.ylim()[1] * 0.95,
+                ax.get_ylim()[1] * 0.95,
                 f"Break\n{bd.date()}",
                 ha="center",
                 va="top",
@@ -527,7 +530,7 @@ class BreakDetector:
             )
 
         # Mark ICD transition and the one-year middle cut if inside focus
-        plt.axvline(
+        ax.axvline(
             x=self.icd_transition,
             color="blue",
             linestyle="-",
@@ -537,21 +540,21 @@ class BreakDetector:
         )
         middle_cut = pd.Timestamp("2016-10-01")
         if dates.min() <= middle_cut <= dates.max():
-            plt.axvline(
+            ax.axvline(
                 x=middle_cut, color="blue", linestyle="-", alpha=0.4, linewidth=2
             )
 
         # Focus boundaries
-        plt.axvline(x=effective_start, color="gray", linestyle=":", alpha=0.3)
-        plt.axvline(x=effective_end, color="gray", linestyle=":", alpha=0.3)
+        ax.axvline(x=effective_start, color="gray", linestyle=":", alpha=0.3)
+        ax.axvline(x=effective_end, color="gray", linestyle=":", alpha=0.3)
 
-        plt.title(
+        ax.set_title(
             f"Break Analysis: {hypothesis_name}\nFocus: {effective_start.date()} to {effective_end.date()}"
         )
-        plt.xlabel("Date")
-        plt.ylabel(value_col)
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        ax.set_xlabel("Date")
+        ax.set_ylabel(value_col)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
         plt.xticks(rotation=45)
         plt.tight_layout()
         plotname = "_".join([w for w in hypothesis_name.split(" ")])
